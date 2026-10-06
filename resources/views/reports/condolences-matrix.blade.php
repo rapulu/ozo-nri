@@ -9,7 +9,7 @@ body { font-family: DejaVu Sans, sans-serif; font-size: 7.5px; color: #111; }
 .header h1 { margin: 0; font-size: 15px; }
 .header p { margin: 2px 0; font-size: 8.5px; }
 .legend { margin: 6px 0; font-size: 7.5px; }
-table.matrix { width: 100%; border-collapse: collapse; }
+table.matrix { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.matrix th, table.matrix td { border: 1px solid #444; padding: 2px 3px; text-align: center; vertical-align: top; }
 table.matrix th { background: #f0f0f0; }
 table.matrix th.group { font-size: 7.5px; }
@@ -47,7 +47,21 @@ Update any figure per member inside that condolence's list in the secretary pane
 <p class="continued">Condolence Levies Matrix — {{ $rangeLabel ?? '' }} (continued)</p>
 @endif
 
+@php
+$areaCount = count($condolences);
+$dataCols = $areaCount * 3 + 3;
+$memberWidth = 13;
+$snWidth = 3;
+$dataWidth = $dataCols > 0 ? (100 - $memberWidth - $snWidth) / $dataCols : 0;
+@endphp
 <table class="matrix">
+<colgroup>
+<col style="width: {{ $snWidth }}%;">
+<col style="width: {{ $memberWidth }}%;">
+@for($i = 0; $i < $dataCols; $i++)
+<col style="width: {{ $dataWidth }}%;">
+@endfor
+</colgroup>
 <thead>
 <tr>
 <th rowspan="2" style="width:20px;">S/N</th>

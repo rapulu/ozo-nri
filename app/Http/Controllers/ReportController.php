@@ -15,7 +15,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
-    public const MATRIX_PDF_CHUNK_SIZE = 100;
+    /**
+     * Sized to fill whole pages exactly (30 matrix rows per A3 landscape
+     * page) so stitched sections never leave half-empty pages behind.
+     */
+    public const MATRIX_PDF_CHUNK_SIZE = 90;
 
     public const AREA_PDF_CHUNK_SIZE = 200;
 
@@ -26,10 +30,11 @@ class ReportController extends Controller
     public const AREA_PDF_ALL_LIMIT = 1500;
 
     /**
-     * The merged matrix renders one safe chunk at a time, so "all members"
-     * stays available up to this size (~20 chunks ≈ under a minute).
+     * The lean fixed-layout table renders ~1,000 members in one pass
+     * (~800M peak), so "all members" stays a single continuous document
+     * up to this size. Beyond it, chunks are rendered and merged.
      */
-    public const MATRIX_PDF_ALL_LIMIT = 2000;
+    public const MATRIX_PDF_ALL_LIMIT = 1100;
 
     /**
      * Build "Members X–Y" range options for download dialogs.
@@ -214,13 +219,9 @@ class ReportController extends Controller
 
         $suffix = $statusFilter === 'open' ? 'open' : 'all';
 
-        // One giant table exhausts Dompdf's memory, so a full download is
-        // rendered in safe chunks and merged into a single PDF file.
-        if ($limit === null && $totalMembers > self::MATRIX_PDF_CHUNK_SIZE) {
-            if ($totalMembers > self::MATRIX_PDF_ALL_LIMIT) {
-                abort(422, 'Too many members for a single PDF. Download member ranges or the CSV instead.');
-            }
-
+        // The lean table renders ~1,100 members in one continuous pass.
+        // Beyond that, safe chunks are rendered and merged into one file.
+        if ($limit === null && $totalMembers > self::MATRIX_PDF_ALL_LIMIT) {
             $merged = $this->renderMergedMatrix($condolences, $totalMembers, $statusFilter);
 
             return response($merged, 200, [

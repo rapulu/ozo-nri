@@ -191,9 +191,9 @@ class AssociationCoreTest extends TestCase
         $this->assertSame('All members (993)', $options['all']);
         $this->assertCount(6, $options);
 
-        $matrixOptions = ReportController::memberRangeOptions(993, 100, ReportController::MATRIX_PDF_ALL_LIMIT);
+        $matrixOptions = ReportController::memberRangeOptions(993, 90, ReportController::MATRIX_PDF_ALL_LIMIT);
         $this->assertSame('All members (993)', $matrixOptions['all']);
-        $this->assertCount(11, $matrixOptions);
+        $this->assertCount(13, $matrixOptions);
     }
 
     public function test_matrix_and_area_reports_support_member_chunks_and_csv(): void
