@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Members\RelationManagers;
 
 use App\Enums\ArrearReason;
+use App\Filament\Resources\Members\Actions\LogMemberPayment;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -43,6 +44,9 @@ class MemberDepositsRelationManager extends RelationManager
                         TextEntry::make('opening_applied')
                             ->label('Of which to opening balance')
                             ->money('NGN'),
+                        TextEntry::make('credit_added')
+                            ->label('Of which kept as credit')
+                            ->money('NGN'),
                         TextEntry::make('recorder.name')
                             ->label('Recorded by'),
                         TextEntry::make('notes')
@@ -80,6 +84,9 @@ class MemberDepositsRelationManager extends RelationManager
                     ->toggleable(),
             ])
             ->filters([])
+            ->headerActions([
+                LogMemberPayment::make(),
+            ])
             ->recordActions([
                 ViewAction::make(),
             ])

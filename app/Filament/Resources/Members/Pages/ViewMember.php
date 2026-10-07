@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Members\Pages;
 
-use App\Filament\Resources\Members\Actions\LogMemberPayment;
 use App\Filament\Resources\Members\MemberResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -16,7 +15,6 @@ class ViewMember extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            LogMemberPayment::make(),
             Action::make('statementPdf')
                 ->label('Member statement PDF')
                 ->icon('heroicon-o-document-arrow-down')
