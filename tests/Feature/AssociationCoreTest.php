@@ -6,6 +6,7 @@ use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
 use App\Filament\Resources\Members\Pages\ViewMember;
+use App\Filament\Resources\Members\RelationManagers\MemberDepositsRelationManager;
 use App\Http\Controllers\ReportController;
 use App\Models\Arrear;
 use App\Models\ArrearPayment;
@@ -399,8 +400,8 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'condolence',
                 'allocation' => 'specific',
                 'condolence_levy_id' => $levy->id,
@@ -426,8 +427,8 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->mountAction('logPayment')
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->mountTableAction('logPayment')
             ->assertHasNoErrors();
     }
 
@@ -445,8 +446,8 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'annual_dues',
                 'arrear_id' => $arrear->id,
                 'amount' => 10000,
@@ -485,8 +486,8 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'condolence',
                 'allocation' => 'auto',
                 'amount' => 7000,
@@ -537,8 +538,8 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'annual_dues',
                 'arrear_id' => $arrear->id,
                 'amount' => '10,000',
@@ -557,7 +558,7 @@ class AssociationCoreTest extends TestCase
         ]);
     }
 
-    public function test_log_payment_auto_rejects_amount_above_outstanding(): void
+    public function test_log_payment_auto_overpay_becomes_credit(): void
     {
         $secretary = User::factory()->create();
         $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
@@ -567,17 +568,43 @@ class AssociationCoreTest extends TestCase
 
         $this->actingAs($secretary, 'web');
 
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'condolence',
                 'allocation' => 'auto',
-                'amount' => 99999,
+                'amount' => 8000,
                 'paid_at' => now()->toDateString(),
                 'payment_method' => 'cash',
             ])
-            ->assertHasErrors(['amount']);
+            ->assertHasNoErrors();
 
-        $this->assertDatabaseMissing('payments', ['member_id' => $member->id]);
+        $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
+        $this->assertEquals('paid', $levy->refresh()->status);
+        $this->assertEquals(3000, (float) $member->refresh()->credit_balance);
+
+        $deposit = Deposit::where('member_id', $member->id)->firstOrFail();
+        $this->assertEquals(8000, (float) $deposit->amount);
+        $this->assertEquals(3000, (float) $deposit->credit_added);
+    }
+
+    public function test_new_levy_auto_debits_member_credit(): void
+    {
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        Member::query()->whereKey($member->id)->update(['credit_balance' => 4000]);
+
+        $deceased = Member::factory()->deceased()->create();
+        $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 5000]);
+        $condolence->generateLevies();
+
+        $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
+        $this->assertEquals('partial', $levy->refresh()->status);
+        $this->assertEquals(1000, (float) $levy->amount_expected - (float) $levy->amount_paid);
+        $this->assertEquals(0, (float) $member->refresh()->credit_balance);
+        $this->assertDatabaseHas('payments', [
+            'condolence_levy_id' => $levy->id,
+            'amount' => 4000,
+            'payment_method' => 'credit',
+        ]);
     }
 
     public function test_log_payment_auto_spreads_across_levies_arrears_and_opening(): void
@@ -602,8 +629,8 @@ class AssociationCoreTest extends TestCase
         $this->actingAs($secretary, 'web');
 
         // Owes 5000 levy + 3000 dues + 2000 opening = 10000; deposit 9000.
-        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
-            ->callAction('logPayment', [
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
                 'reason' => 'condolence',
                 'allocation' => 'auto',
                 'amount' => 9000,
@@ -621,5 +648,53 @@ class AssociationCoreTest extends TestCase
         $this->assertEquals(9000, (float) $deposit->amount);
         $this->assertEquals(1000, (float) $deposit->opening_applied);
         $this->assertEquals(1000, $member->accountTotals()['outstanding']);
+    }
+
+    public function test_log_payment_overpay_on_single_item_becomes_credit(): void
+    {
+        $secretary = User::factory()->create();
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+
+        $deceased = Member::factory()->deceased()->create();
+        $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 5000]);
+        $condolence->generateLevies();
+        $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
+
+        $arrear = Arrear::create([
+            'member_id' => $member->id,
+            'reason' => 'fine',
+            'title' => 'Fine',
+            'amount_expected' => 2000,
+        ]);
+
+        $this->actingAs($secretary, 'web');
+
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
+                'reason' => 'condolence',
+                'allocation' => 'specific',
+                'condolence_levy_id' => $levy->id,
+                'amount' => 6000,
+                'paid_at' => now()->toDateString(),
+                'payment_method' => 'cash',
+            ])
+            ->assertHasNoErrors();
+
+        $this->assertEquals('paid', $levy->refresh()->status);
+        $this->assertEquals(1000, (float) $member->refresh()->credit_balance);
+
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
+                'reason' => 'fine',
+                'arrear_id' => $arrear->id,
+                'amount' => 2500,
+                'paid_at' => now()->toDateString(),
+                'payment_method' => 'cash',
+            ])
+            ->assertHasNoErrors();
+
+        $this->assertEquals('paid', $arrear->refresh()->status);
+        // ₦1,000 credit from before + ₦500 excess now.
+        $this->assertEquals(1500, (float) $member->refresh()->credit_balance);
     }
 }
