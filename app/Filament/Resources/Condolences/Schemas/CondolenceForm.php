@@ -55,6 +55,7 @@ class CondolenceForm
                             ->label('Amount per member (₦)')
                             ->required()
                             ->numeric()
+                            ->stripCharacters([',', ' '])
                             ->minValue(0)
                             ->default(5000),
                         DatePicker::make('date_announced')

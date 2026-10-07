@@ -2,7 +2,8 @@
 
 namespace App\Filament\Member\Resources;
 
-use App\Models\Payment;
+use App\Enums\ArrearReason;
+use App\Models\Deposit;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -12,9 +13,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
-class MyPaymentResource extends Resource
+class MyDepositResource extends Resource
 {
-    protected static ?string $model = Payment::class;
+    protected static ?string $model = Deposit::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
@@ -38,10 +39,8 @@ class MyPaymentResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('condolence.title')
-                    ->label('Condolence')
-                    ->wrap(),
                 TextColumn::make('amount')
+                    ->label('Paid')
                     ->money('NGN')
                     ->sortable(),
                 TextColumn::make('paid_at')
@@ -50,8 +49,11 @@ class MyPaymentResource extends Resource
                     ->sortable(),
                 TextColumn::make('payment_method')
                     ->badge(),
+                TextColumn::make('reason')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
                 TextColumn::make('reference')
-                    ->label('Receipt no.'),
+                    ->label('Reference'),
             ])
             ->defaultSort('paid_at', 'desc')
             ->filters([])
@@ -62,7 +64,7 @@ class MyPaymentResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListMyPayments::route('/'),
+            'index' => ListMyDeposits::route('/'),
         ];
     }
 

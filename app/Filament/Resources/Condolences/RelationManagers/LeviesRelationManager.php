@@ -32,6 +32,7 @@ class LeviesRelationManager extends RelationManager
                     ->label('Arrears / expected (₦)')
                     ->required()
                     ->numeric()
+                    ->stripCharacters([',', ' '])
                     ->minValue(0),
                 Select::make('status')
                     ->options(LevyStatus::options())
@@ -87,6 +88,7 @@ class LeviesRelationManager extends RelationManager
                             ->label('Amount received (₦)')
                             ->required()
                             ->numeric()
+                            ->stripCharacters([',', ' '])
                             ->minValue(1),
                         DatePicker::make('paid_at')
                             ->label('Date received')

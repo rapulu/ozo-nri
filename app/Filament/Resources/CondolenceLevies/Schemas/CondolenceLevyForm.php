@@ -29,10 +29,12 @@ class CondolenceLevyForm
                     ->label('Expected (₦)')
                     ->required()
                     ->numeric()
+                    ->stripCharacters([',', ' '])
                     ->minValue(0),
                 TextInput::make('amount_paid')
                     ->label('Paid (₦)')
                     ->numeric()
+                    ->stripCharacters([',', ' '])
                     ->default(0)
                     ->disabled()
                     ->dehydrated(false)
