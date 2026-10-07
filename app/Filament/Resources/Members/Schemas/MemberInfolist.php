@@ -30,24 +30,24 @@ class MemberInfolist
                             ->date(),
                     ])
                     ->columns(2),
-                Section::make('Account summary')
+                Section::make('Account summary (condolences + arrears)')
                     ->schema([
+                        TextEntry::make('opening_arrears')
+                            ->label('Opening arrears')
+                            ->money('NGN')
+                            ->helperText('Past debt — edit on the Edit page.'),
                         TextEntry::make('total_expected')
-                            ->label('Total expected')
-                            ->getStateUsing(fn ($record): float => (float) $record->levies()->sum('amount_expected'))
-                            ->money('NGN'),
+                            ->label('New levies')
+                            ->getStateUsing(fn ($record): float => $record->leviesOwing())
+                            ->money('NGN')
+                            ->helperText('Condolence levies still owing only.'),
                         TextEntry::make('total_paid')
                             ->label('Total paid')
-                            ->getStateUsing(fn ($record): float => (float) $record->levies()->sum('amount_paid'))
+                            ->getStateUsing(fn ($record): float => $record->accountTotals()['paid'])
                             ->money('NGN'),
                         TextEntry::make('total_outstanding')
                             ->label('Outstanding')
-                            ->getStateUsing(function ($record): float {
-                                $expected = (float) $record->levies()->sum('amount_expected');
-                                $paid = (float) $record->levies()->sum('amount_paid');
-
-                                return $expected - $paid;
-                            })
+                            ->getStateUsing(fn ($record): float => $record->accountTotals()['outstanding'])
                             ->money('NGN'),
                         TextEntry::make('notes')
                             ->columnSpanFull(),

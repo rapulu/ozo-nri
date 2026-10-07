@@ -68,6 +68,13 @@ class MemberForm
                         DatePicker::make('date_joined')
                             ->default(now())
                             ->maxDate(now()),
+                        TextInput::make('opening_arrears')
+                            ->label('Opening arrears (₦)')
+                            ->numeric()
+                            ->stripCharacters([',', ' '])
+                            ->minValue(0)
+                            ->default(0)
+                            ->helperText('Past money this member owes from before these records began. Counts toward their outstanding.'),
                         FileUpload::make('photo_path')
                             ->label('Photo')
                             ->image()

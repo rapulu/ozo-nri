@@ -51,12 +51,7 @@ class MembersTable
                     ->toggleable(),
                 TextColumn::make('levies_sum_outstanding')
                     ->label('Outstanding')
-                    ->getStateUsing(function ($record): float {
-                        $expected = (float) $record->levies()->sum('amount_expected');
-                        $paid = (float) $record->levies()->sum('amount_paid');
-
-                        return $expected - $paid;
-                    })
+                    ->getStateUsing(fn ($record): float => $record->accountTotals()['outstanding'])
                     ->money('NGN')
                     ->toggleable(),
             ])
