@@ -18,13 +18,25 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class LogMemberPayment extends Action
 {
     public static function getDefaultName(): ?string
     {
         return 'logPayment';
+    }
+
+    /**
+     * Works from member pages (getRecord) and relation managers (getOwnerRecord).
+     */
+    public static function resolveMember(mixed $livewire): Member
+    {
+        if (method_exists($livewire, 'getRecord') && $livewire->getRecord() instanceof Member) {
+            return $livewire->getRecord();
+        }
+
+        return $livewire->getOwnerRecord();
     }
 
     protected function setUp(): void
@@ -35,7 +47,7 @@ class LogMemberPayment extends Action
             ->label('Log payment')
             ->icon('heroicon-o-banknotes')
             ->color('success')
-            ->modalHeading(fn (mixed $livewire): string => 'Log payment — '.$livewire->getRecord()->full_name)
+            ->modalHeading(fn (mixed $livewire): string => 'Log payment — '.LogMemberPayment::resolveMember($livewire)->full_name)
             ->modalDescription('Deposit any amount: it spreads across outstanding condolence levies oldest-first, or pick one specific levy. Part-payments welcome.')
             ->modalSubmitActionLabel('Save payment')
             ->schema([
@@ -57,7 +69,7 @@ class LogMemberPayment extends Action
                 Select::make('condolence_levy_id')
                     ->label('Condolence levy')
                     ->options(fn (mixed $livewire): array => CondolenceLevy::query()
-                        ->where('member_id', $livewire->getRecord()->id)
+                        ->where('member_id', LogMemberPayment::resolveMember($livewire)->id)
                         ->with('condolence')
                         ->get()
                         ->mapWithKeys(fn (CondolenceLevy $l): array => [
@@ -75,7 +87,7 @@ class LogMemberPayment extends Action
                 Select::make('arrear_id')
                     ->label('Arrear')
                     ->options(fn (mixed $livewire, callable $get): array => Arrear::query()
-                        ->where('member_id', $livewire->getRecord()->id)
+                        ->where('member_id', LogMemberPayment::resolveMember($livewire)->id)
                         ->where('reason', $get('reason'))
                         ->whereIn('status', [LevyStatus::Unpaid->value, LevyStatus::Partial->value])
                         ->orderBy('due_date')
@@ -104,7 +116,7 @@ class LogMemberPayment extends Action
                             return null;
                         }
 
-                        $outstanding = $livewire->getRecord()->accountTotals()['outstanding'];
+                        $outstanding = LogMemberPayment::resolveMember($livewire)->accountTotals()['outstanding'];
 
                         return 'Total outstanding (levies + arrears + opening): ₦'.number_format($outstanding, 0).' — deposit any part of it.';
                     }),
@@ -126,7 +138,7 @@ class LogMemberPayment extends Action
             ])
             ->action(function (array $data, mixed $livewire): void {
                 /** @var Member $member */
-                $member = $livewire->getRecord();
+                $member = LogMemberPayment::resolveMember($livewire);
 
                 if ($data['reason'] === ArrearReason::Condolence->value) {
                     if (($data['allocation'] ?? 'auto') === 'auto') {
@@ -150,118 +162,128 @@ class LogMemberPayment extends Action
                             + $openArrears->sum(fn (Arrear $a): float => max(0, (float) $a->amount_expected - (float) $a->amount_paid))
                             + max(0, (float) $member->opening_arrears);
 
-                        if ($totalOwed <= 0) {
-                            throw ValidationException::withMessages([
-                                'amount' => 'This member has no outstanding balance.',
-                            ]);
-                        }
-
-                        if ((float) $data['amount'] > $totalOwed) {
-                            throw ValidationException::withMessages([
-                                'amount' => '₦'.number_format((float) $data['amount'], 0).' exceeds the ₦'.number_format($totalOwed, 0).' outstanding.',
-                            ]);
-                        }
-
                         $remaining = (float) $data['amount'];
 
                         // One shared reference ties the split rows back to this single deposit.
                         $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
                         $depositLabel = '₦'.number_format((float) $data['amount'], 0).' deposit';
 
-                        $splits = [];
-                        foreach ($outstanding as $levy) {
-                            if ($remaining <= 0) {
-                                break;
+                        $result = DB::transaction(function () use ($member, $data, $outstanding, $openArrears, $reference, $depositLabel, $remaining): array {
+                            $left = $remaining;
+                            $splits = [];
+                            foreach ($outstanding as $levy) {
+                                if ($left <= 0) {
+                                    break;
+                                }
+
+                                $due = max(0, (float) $levy->amount_expected - (float) $levy->amount_paid);
+
+                                if ($due <= 0) {
+                                    continue;
+                                }
+
+                                $splits[] = ['levy' => $levy, 'share' => min($left, $due)];
+                                $left -= min($left, $due);
                             }
 
-                            $due = max(0, (float) $levy->amount_expected - (float) $levy->amount_paid);
+                            $arrearSplits = [];
+                            foreach ($openArrears as $arrear) {
+                                if ($left <= 0) {
+                                    break;
+                                }
 
-                            if ($due <= 0) {
-                                continue;
+                                $due = max(0, (float) $arrear->amount_expected - (float) $arrear->amount_paid);
+
+                                if ($due <= 0) {
+                                    continue;
+                                }
+
+                                $arrearSplits[] = ['arrear' => $arrear, 'share' => min($left, $due)];
+                                $left -= min($left, $due);
                             }
 
-                            $splits[] = ['levy' => $levy, 'share' => min($remaining, $due)];
-                            $remaining -= min($remaining, $due);
-                        }
+                            $openingShare = min($left, max(0, (float) $member->opening_arrears));
+                            $left -= $openingShare;
 
-                        $arrearSplits = [];
-                        foreach ($openArrears as $arrear) {
-                            if ($remaining <= 0) {
-                                break;
+                            // Anything left over becomes member credit for future levies.
+                            $creditShare = max(0, $left);
+                            if ($creditShare > 0) {
+                                Member::query()->whereKey($member->id)->increment('credit_balance', $creditShare);
                             }
 
-                            $due = max(0, (float) $arrear->amount_expected - (float) $arrear->amount_paid);
+                            $splitCount = count($splits) + count($arrearSplits) + ($openingShare > 0 ? 1 : 0);
+                            $splitIndex = 0;
 
-                            if ($due <= 0) {
-                                continue;
-                            }
-
-                            $arrearSplits[] = ['arrear' => $arrear, 'share' => min($remaining, $due)];
-                            $remaining -= min($remaining, $due);
-                        }
-
-                        $openingShare = min($remaining, max(0, (float) $member->opening_arrears));
-                        $remaining -= $openingShare;
-
-                        $splitCount = count($splits) + count($arrearSplits) + ($openingShare > 0 ? 1 : 0);
-                        $splitIndex = 0;
-
-                        Deposit::create([
-                            'member_id' => $member->id,
-                            'amount' => (float) $data['amount'],
-                            'paid_at' => $data['paid_at'],
-                            'payment_method' => $data['payment_method'],
-                            'reference' => $reference,
-                            'reason' => ArrearReason::Condolence->value,
-                            'opening_applied' => $openingShare,
-                            'recorded_by' => auth()->id(),
-                            'notes' => $data['notes'] ?? null,
-                        ]);
-
-                        foreach ($splits as $split) {
-                            $splitIndex++;
-                            $note = trim(($data['notes'] ?? '').' [Split '.$splitIndex." of {$splitCount} — {$depositLabel}]");
-
-                            Payment::create([
-                                'condolence_levy_id' => $split['levy']->id,
-                                'condolence_id' => $split['levy']->condolence_id,
+                            Deposit::create([
                                 'member_id' => $member->id,
-                                'amount' => $split['share'],
+                                'amount' => (float) $data['amount'],
                                 'paid_at' => $data['paid_at'],
                                 'payment_method' => $data['payment_method'],
                                 'reference' => $reference,
                                 'reason' => ArrearReason::Condolence->value,
+                                'opening_applied' => $openingShare,
+                                'credit_added' => $creditShare,
                                 'recorded_by' => auth()->id(),
-                                'notes' => $note,
+                                'notes' => $data['notes'] ?? null,
                             ]);
+
+                            foreach ($splits as $split) {
+                                $splitIndex++;
+                                $note = trim(($data['notes'] ?? '').' [Split '.$splitIndex." of {$splitCount} — {$depositLabel}]");
+
+                                Payment::create([
+                                    'condolence_levy_id' => $split['levy']->id,
+                                    'condolence_id' => $split['levy']->condolence_id,
+                                    'member_id' => $member->id,
+                                    'amount' => $split['share'],
+                                    'paid_at' => $data['paid_at'],
+                                    'payment_method' => $data['payment_method'],
+                                    'reference' => $reference,
+                                    'reason' => ArrearReason::Condolence->value,
+                                    'recorded_by' => auth()->id(),
+                                    'notes' => $note,
+                                ]);
+                            }
+
+                            foreach ($arrearSplits as $split) {
+                                $splitIndex++;
+                                $note = trim(($data['notes'] ?? '').' [Split '.$splitIndex." of {$splitCount} — {$depositLabel}]");
+
+                                ArrearPayment::create([
+                                    'arrear_id' => $split['arrear']->id,
+                                    'member_id' => $member->id,
+                                    'amount' => $split['share'],
+                                    'paid_at' => $data['paid_at'],
+                                    'payment_method' => $data['payment_method'],
+                                    'reference' => $reference,
+                                    'reason' => $split['arrear']->reason,
+                                    'recorded_by' => auth()->id(),
+                                    'notes' => $note,
+                                ]);
+                            }
+
+                            if ($openingShare > 0) {
+                                $member->decrement('opening_arrears', $openingShare);
+                            }
+
+                            return [
+                                'touched' => count($splits) + count($arrearSplits),
+                                'openingShare' => $openingShare,
+                                'creditShare' => $creditShare,
+                            ];
+                        });
+
+                        $balance = max(0, $totalOwed - (float) $data['amount']);
+                        $extra = [];
+                        if ($result['openingShare'] > 0) {
+                            $extra[] = 'opening balance';
                         }
-
-                        foreach ($arrearSplits as $split) {
-                            $splitIndex++;
-                            $note = trim(($data['notes'] ?? '').' [Split '.$splitIndex." of {$splitCount} — {$depositLabel}]");
-
-                            ArrearPayment::create([
-                                'arrear_id' => $split['arrear']->id,
-                                'member_id' => $member->id,
-                                'amount' => $split['share'],
-                                'paid_at' => $data['paid_at'],
-                                'payment_method' => $data['payment_method'],
-                                'reference' => $reference,
-                                'reason' => $split['arrear']->reason,
-                                'recorded_by' => auth()->id(),
-                                'notes' => $note,
-                            ]);
+                        if ($result['creditShare'] > 0) {
+                            $extra[] = '₦'.number_format($result['creditShare'], 0).' kept as credit';
                         }
-
-                        if ($openingShare > 0) {
-                            $member->decrement('opening_arrears', $openingShare);
-                        }
-
-                        $touched = count($splits) + count($arrearSplits);
-                        $balance = $totalOwed - (float) $data['amount'];
 
                         Notification::make()
-                            ->title('₦'.number_format((float) $data['amount'], 0)." spread across {$touched} items".($openingShare > 0 ? ' + opening balance' : '').' — outstanding ₦'.number_format($balance, 0))
+                            ->title('₦'.number_format((float) $data['amount'], 0)." spread across {$result['touched']} items".($extra !== [] ? ' + '.implode(' + ', $extra) : '').' — outstanding ₦'.number_format($balance, 0))
                             ->body("All split rows share reference {$reference}.")
                             ->success()
                             ->send();
@@ -273,29 +295,39 @@ class LogMemberPayment extends Action
 
                     $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
 
-                    Deposit::create([
-                        'member_id' => $member->id,
-                        'amount' => (float) $data['amount'],
-                        'paid_at' => $data['paid_at'],
-                        'payment_method' => $data['payment_method'],
-                        'reference' => $reference,
-                        'reason' => ArrearReason::Condolence->value,
-                        'recorded_by' => auth()->id(),
-                        'notes' => $data['notes'] ?? null,
-                    ]);
+                    $payment = DB::transaction(function () use ($member, $data, $levy, $reference): Payment {
+                        Deposit::create([
+                            'member_id' => $member->id,
+                            'amount' => (float) $data['amount'],
+                            'paid_at' => $data['paid_at'],
+                            'payment_method' => $data['payment_method'],
+                            'reference' => $reference,
+                            'reason' => ArrearReason::Condolence->value,
+                            'recorded_by' => auth()->id(),
+                            'notes' => $data['notes'] ?? null,
+                        ]);
 
-                    Payment::create([
-                        'condolence_levy_id' => $levy->id,
-                        'condolence_id' => $levy->condolence_id,
-                        'member_id' => $member->id,
-                        'amount' => $data['amount'],
-                        'paid_at' => $data['paid_at'],
-                        'payment_method' => $data['payment_method'],
-                        'reference' => $reference,
-                        'reason' => ArrearReason::Condolence->value,
-                        'recorded_by' => auth()->id(),
-                        'notes' => $data['notes'] ?? null,
-                    ]);
+                        return Payment::create([
+                            'condolence_levy_id' => $levy->id,
+                            'condolence_id' => $levy->condolence_id,
+                            'member_id' => $member->id,
+                            'amount' => $data['amount'],
+                            'paid_at' => $data['paid_at'],
+                            'payment_method' => $data['payment_method'],
+                            'reference' => $reference,
+                            'reason' => ArrearReason::Condolence->value,
+                            'recorded_by' => auth()->id(),
+                            'notes' => $data['notes'] ?? null,
+                        ]);
+                    });
+
+                    // The model caps the row at what is owed; anything above becomes credit.
+                    $applied = (float) $payment->amount;
+                    $credited = max(0, (float) $data['amount'] - $applied);
+
+                    if ($credited > 0) {
+                        Deposit::where('member_id', $member->id)->where('reference', $reference)->update(['credit_added' => $credited]);
+                    }
 
                     $balance = (float) $levy->refresh()->amount_expected - (float) $levy->amount_paid;
                 } else {
@@ -303,34 +335,43 @@ class LogMemberPayment extends Action
 
                     $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
 
-                    Deposit::create([
-                        'member_id' => $member->id,
-                        'amount' => (float) $data['amount'],
-                        'paid_at' => $data['paid_at'],
-                        'payment_method' => $data['payment_method'],
-                        'reference' => $reference,
-                        'reason' => $data['reason'],
-                        'recorded_by' => auth()->id(),
-                        'notes' => $data['notes'] ?? null,
-                    ]);
+                    $arrearPayment = DB::transaction(function () use ($member, $data, $arrear, $reference): ArrearPayment {
+                        Deposit::create([
+                            'member_id' => $member->id,
+                            'amount' => (float) $data['amount'],
+                            'paid_at' => $data['paid_at'],
+                            'payment_method' => $data['payment_method'],
+                            'reference' => $reference,
+                            'reason' => $data['reason'],
+                            'recorded_by' => auth()->id(),
+                            'notes' => $data['notes'] ?? null,
+                        ]);
 
-                    ArrearPayment::create([
-                        'arrear_id' => $arrear->id,
-                        'member_id' => $member->id,
-                        'amount' => $data['amount'],
-                        'paid_at' => $data['paid_at'],
-                        'payment_method' => $data['payment_method'],
-                        'reference' => $reference,
-                        'reason' => $data['reason'],
-                        'recorded_by' => auth()->id(),
-                        'notes' => $data['notes'] ?? null,
-                    ]);
+                        return ArrearPayment::create([
+                            'arrear_id' => $arrear->id,
+                            'member_id' => $member->id,
+                            'amount' => $data['amount'],
+                            'paid_at' => $data['paid_at'],
+                            'payment_method' => $data['payment_method'],
+                            'reference' => $reference,
+                            'reason' => $data['reason'],
+                            'recorded_by' => auth()->id(),
+                            'notes' => $data['notes'] ?? null,
+                        ]);
+                    });
+
+                    $applied = (float) $arrearPayment->amount;
+                    $credited = max(0, (float) $data['amount'] - $applied);
+
+                    if ($credited > 0) {
+                        Deposit::where('member_id', $member->id)->where('reference', $reference)->update(['credit_added' => $credited]);
+                    }
 
                     $balance = (float) $arrear->refresh()->amount_expected - (float) $arrear->amount_paid;
                 }
 
                 Notification::make()
-                    ->title('Payment recorded — balance ₦'.number_format($balance, 0))
+                    ->title('Payment recorded — balance ₦'.number_format($balance, 0).($credited > 0 ? ', ₦'.number_format($credited, 0).' kept as credit' : ''))
                     ->success()
                     ->send();
             });

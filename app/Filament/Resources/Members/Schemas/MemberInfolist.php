@@ -49,6 +49,10 @@ class MemberInfolist
                             ->label('Outstanding')
                             ->getStateUsing(fn ($record): float => $record->accountTotals()['outstanding'])
                             ->money('NGN'),
+                        TextEntry::make('credit_balance')
+                            ->label('Credit (owed to member)')
+                            ->money('NGN')
+                            ->helperText('Overpayments sit here and are eaten by future levies automatically.'),
                         TextEntry::make('notes')
                             ->columnSpanFull(),
                     ])

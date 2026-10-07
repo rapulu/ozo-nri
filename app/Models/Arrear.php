@@ -44,6 +44,10 @@ class Arrear extends Model
 
     protected static function booted(): void
     {
+        static::created(function (Arrear $arrear): void {
+            $arrear->member->applyCredit();
+        });
+
         static::saving(function (Arrear $arrear): void {
             if ($arrear->reason === ArrearReason::Condolence->value && $arrear->condolence_id === null) {
                 throw ValidationException::withMessages([

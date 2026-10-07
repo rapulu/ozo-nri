@@ -54,6 +54,10 @@ class MembersTable
                     ->getStateUsing(fn ($record): float => $record->accountTotals()['outstanding'])
                     ->money('NGN')
                     ->toggleable(),
+                TextColumn::make('credit_balance')
+                    ->label('Credit')
+                    ->money('NGN')
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('status')

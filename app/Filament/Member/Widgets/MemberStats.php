@@ -22,7 +22,7 @@ class MemberStats extends StatsOverviewWidget
         $unpaidCount = CondolenceLevy::where('member_id', $member->id)->whereIn('status', ['unpaid', 'partial'])->count()
             + Arrear::where('member_id', $member->id)->whereIn('status', ['unpaid', 'partial'])->count();
 
-        return [
+        $stats = [
             Stat::make('My total paid', '₦'.number_format($totals['paid'], 2))
                 ->icon('heroicon-o-banknotes'),
             Stat::make('My outstanding', '₦'.number_format($totals['outstanding'], 2))
@@ -31,5 +31,13 @@ class MemberStats extends StatsOverviewWidget
             Stat::make('Total expected', '₦'.number_format($totals['expected'], 2))
                 ->icon('heroicon-o-clipboard-document-list'),
         ];
+
+        if ((float) $member->credit_balance > 0) {
+            $stats[] = Stat::make('Owed to me', '₦'.number_format((float) $member->credit_balance, 2))
+                ->description('Eaten by future levies automatically')
+                ->icon('heroicon-o-sparkles');
+        }
+
+        return $stats;
     }
 }

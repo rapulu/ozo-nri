@@ -8,6 +8,7 @@ enum PaymentMethod: string
     case BankTransfer = 'bank_transfer';
     case MobileMoney = 'mobile_money';
     case Cheque = 'cheque';
+    case Credit = 'credit';
     case Other = 'other';
 
     /** @return array<string, string> */
@@ -18,6 +19,7 @@ enum PaymentMethod: string
             self::BankTransfer->value => 'Bank transfer',
             self::MobileMoney->value => 'Mobile money',
             self::Cheque->value => 'Cheque',
+            self::Credit->value => 'Credit balance',
             self::Other->value => 'Other',
         ];
     }

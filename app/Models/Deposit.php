@@ -15,6 +15,7 @@ class Deposit extends Model
         'reference',
         'reason',
         'opening_applied',
+        'credit_added',
         'recorded_by',
         'notes',
     ];

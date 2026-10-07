@@ -118,6 +118,12 @@ class Condolence extends Model
                 ]
             );
         }
+
+        // Members holding credit have it eaten by the new levies automatically.
+        Member::query()
+            ->whereIn('id', $memberIds)
+            ->where('credit_balance', '>', 0)
+            ->each(fn (Member $member): float => $member->applyCredit());
     }
 
     public function totalExpected(): float
