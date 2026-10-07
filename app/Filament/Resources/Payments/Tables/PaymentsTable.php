@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
+use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Models\Condolence;
 use Filament\Actions\BulkActionGroup;
@@ -36,6 +37,10 @@ class PaymentsTable
                 TextColumn::make('payment_method')
                     ->badge()
                     ->searchable(),
+                TextColumn::make('reason')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—')
+                    ->toggleable(),
                 TextColumn::make('reference')
                     ->label('Receipt no.')
                     ->searchable()
@@ -51,6 +56,8 @@ class PaymentsTable
                     ->searchable(),
                 SelectFilter::make('payment_method')
                     ->options(PaymentMethod::options()),
+                SelectFilter::make('reason')
+                    ->options(ArrearReason::options()),
             ])
             ->recordActions([
                 ViewAction::make(),

@@ -2,19 +2,13 @@
 
 namespace App\Models;
 
-use Database\Factories\PaymentFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Payment extends Model
+class ArrearPayment extends Model
 {
-    /** @use HasFactory<PaymentFactory> */
-    use HasFactory;
-
     protected $fillable = [
-        'condolence_levy_id',
-        'condolence_id',
+        'arrear_id',
         'member_id',
         'amount',
         'paid_at',
@@ -36,16 +30,10 @@ class Payment extends Model
         ];
     }
 
-    /** @return BelongsTo<CondolenceLevy, $this> */
-    public function levy(): BelongsTo
+    /** @return BelongsTo<Arrear, $this> */
+    public function arrear(): BelongsTo
     {
-        return $this->belongsTo(CondolenceLevy::class, 'condolence_levy_id');
-    }
-
-    /** @return BelongsTo<Condolence, $this> */
-    public function condolence(): BelongsTo
-    {
-        return $this->belongsTo(Condolence::class);
+        return $this->belongsTo(Arrear::class);
     }
 
     /** @return BelongsTo<Member, $this> */
@@ -62,11 +50,11 @@ class Payment extends Model
 
     protected static function booted(): void
     {
-        $recalculate = function (Payment $payment): void {
-            $levy = $payment->levy()->first() ?? CondolenceLevy::find($payment->condolence_levy_id);
+        $recalculate = function (ArrearPayment $payment): void {
+            $arrear = $payment->arrear()->first() ?? Arrear::find($payment->arrear_id);
 
-            if ($levy) {
-                $levy->recalculate();
+            if ($arrear) {
+                $arrear->recalculate();
             }
         };
 

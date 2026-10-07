@@ -176,7 +176,7 @@ class ReportController extends Controller
 
     public function memberStatement(Member $member): Response
     {
-        $member->load(['levies.condolence', 'levies.payments', 'payments']);
+        $member->load(['levies.condolence', 'levies.payments', 'payments', 'arrears.payments']);
 
         $levies = $member->levies()
             ->with(['condolence', 'payments'])
@@ -185,15 +185,17 @@ class ReportController extends Controller
             ->select('condolence_levies.*')
             ->get();
 
-        $expected = (float) $member->levies()->sum('amount_expected');
-        $paid = (float) $member->levies()->sum('amount_paid');
+        $arrears = $member->arrears()->with('payments')->orderBy('due_date')->orderBy('id')->get();
+
+        $totals = $member->accountTotals();
 
         $pdf = Pdf::loadView('reports.member-statement', [
             'member' => $member,
             'levies' => $levies,
-            'expected' => $expected,
-            'paid' => $paid,
-            'outstanding' => $expected - $paid,
+            'arrears' => $arrears,
+            'expected' => $totals['expected'],
+            'paid' => $totals['paid'],
+            'outstanding' => $totals['outstanding'],
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('member-'.$member->id.'-statement.pdf');
