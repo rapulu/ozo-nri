@@ -17,6 +17,7 @@ table.records th { background: #f0f0f0; }
 .totals table { width: 100%; border-collapse: collapse; }
 .totals td { border: 1px solid #444; padding: 5px 6px; }
 .footer { margin-top: 18px; font-size: 10px; text-align: center; color: #555; }
+h3 { margin: 14px 0 4px 0; }
 </style>
 </head>
 <body>
@@ -34,84 +35,40 @@ table.records th { background: #f0f0f0; }
 </table>
 </div>
 
+<h3>Payment history (bulk deposits)</h3>
 <table class="records">
 <thead>
 <tr>
 <th>S/N</th>
-<th>Condolence</th>
-<th>Date Announced</th>
-<th>Expected (₦)</th>
-<th>Paid (₦)</th>
-<th>Balance (₦)</th>
-<th>Status</th>
-<th>Payment Date(s)</th>
-</tr>
-</thead>
-<tbody>
-@foreach($levies as $i => $levy)
-<tr>
-<td>{{ $i + 1 }}</td>
-<td>{{ $levy->condolence?->title ?? '—' }}</td>
-<td>{{ $levy->condolence?->date_announced?->format('d/m/Y') ?? '—' }}</td>
-<td class="right">{{ number_format((float) $levy->amount_expected, 2) }}</td>
-<td class="right">{{ number_format((float) $levy->amount_paid, 2) }}</td>
-<td class="right">{{ number_format((float) $levy->amount_expected - (float) $levy->amount_paid, 2) }}</td>
-<td>{{ ucfirst($levy->status) }}</td>
-<td>
-@foreach($levy->payments as $p)
-₦{{ number_format((float) $p->amount, 2) }} on {{ $p->paid_at?->format('d/m/Y') }} ({{ $p->payment_method }})@if(!$loop->last)<br>@endif
-@endforeach
-@if($levy->payments->isEmpty()) — @endif
-</td>
-</tr>
-@endforeach
-</tbody>
-</table>
-
-@if(($arrears ?? collect())->isNotEmpty())
-<h3 style="margin: 14px 0 4px 0;">General arrears</h3>
-<table class="records">
-<thead>
-<tr>
-<th>S/N</th>
-<th>Title</th>
+<th>Date received</th>
+<th>Deposited (₦)</th>
+<th>Method</th>
 <th>Reason</th>
-<th>Due date</th>
-<th>Expected (₦)</th>
-<th>Paid (₦)</th>
-<th>Balance (₦)</th>
-<th>Status</th>
-<th>Payment Date(s)</th>
+<th>Reference</th>
 </tr>
 </thead>
 <tbody>
-@foreach($arrears as $i => $arrear)
+@forelse($deposits as $i => $deposit)
 <tr>
 <td>{{ $i + 1 }}</td>
-<td>{{ $arrear->title }}</td>
-<td>{{ \App\Enums\ArrearReason::options()[$arrear->reason] ?? $arrear->reason }}</td>
-<td>{{ $arrear->due_date?->format('d/m/Y') ?? '—' }}</td>
-<td class="right">{{ number_format((float) $arrear->amount_expected, 2) }}</td>
-<td class="right">{{ number_format((float) $arrear->amount_paid, 2) }}</td>
-<td class="right">{{ number_format((float) $arrear->amount_expected - (float) $arrear->amount_paid, 2) }}</td>
-<td>{{ ucfirst($arrear->status) }}</td>
-<td>
-@foreach($arrear->payments as $p)
-₦{{ number_format((float) $p->amount, 2) }} on {{ $p->paid_at?->format('d/m/Y') }} ({{ $p->payment_method }})@if(!$loop->last)<br>@endif
-@endforeach
-@if($arrear->payments->isEmpty()) — @endif
-</td>
+<td>{{ $deposit->paid_at?->format('d/m/Y') ?? '—' }}</td>
+<td class="right">{{ number_format((float) $deposit->amount, 2) }}</td>
+<td>{{ \App\Enums\PaymentMethod::options()[$deposit->payment_method] ?? $deposit->payment_method ?? '—' }}</td>
+<td>{{ $deposit->reason ? (\App\Enums\ArrearReason::options()[$deposit->reason] ?? $deposit->reason) : '—' }}</td>
+<td>{{ $deposit->reference ?? '—' }}</td>
 </tr>
-@endforeach
+@empty
+<tr><td colspan="6" style="text-align:center;">No payments recorded yet.</td></tr>
+@endforelse
 </tbody>
 </table>
-@endif
 
 <div class="totals">
 <table>
 <tr><td><strong>Total expected</strong></td><td class="right">₦{{ number_format($expected, 2) }}</td></tr>
 <tr><td><strong>Total paid</strong></td><td class="right">₦{{ number_format($paid, 2) }}</td></tr>
 <tr><td><strong>Outstanding</strong></td><td class="right">₦{{ number_format($outstanding, 2) }}</td></tr>
+<tr><td><strong>Credit (owed to member)</strong></td><td class="right">₦{{ number_format($credit, 2) }}</td></tr>
 </table>
 </div>
 

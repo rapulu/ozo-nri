@@ -176,26 +176,17 @@ class ReportController extends Controller
 
     public function memberStatement(Member $member): Response
     {
-        $member->load(['levies.condolence', 'levies.payments', 'payments', 'arrears.payments']);
-
-        $levies = $member->levies()
-            ->with(['condolence', 'payments'])
-            ->join('condolences', 'condolences.id', '=', 'condolence_levies.condolence_id')
-            ->orderBy('condolences.date_announced')
-            ->select('condolence_levies.*')
-            ->get();
-
-        $arrears = $member->arrears()->with('payments')->orderBy('due_date')->orderBy('id')->get();
+        $deposits = $member->deposits()->orderBy('paid_at')->orderBy('id')->get();
 
         $totals = $member->accountTotals();
 
         $pdf = Pdf::loadView('reports.member-statement', [
             'member' => $member,
-            'levies' => $levies,
-            'arrears' => $arrears,
+            'deposits' => $deposits,
             'expected' => $totals['expected'],
             'paid' => $totals['paid'],
             'outstanding' => $totals['outstanding'],
+            'credit' => (float) $member->credit_balance,
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('member-'.$member->id.'-statement.pdf');
