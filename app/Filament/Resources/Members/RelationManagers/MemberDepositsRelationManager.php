@@ -2,15 +2,19 @@
 
 namespace App\Filament\Resources\Members\RelationManagers;
 
-use App\Enums\ArrearReason;
 use App\Filament\Resources\Members\Actions\LogMemberPayment;
-use Filament\Actions\ViewAction;
-use Filament\Infolists\Components\TextEntry;
+use App\Models\Arrear;
+use App\Models\ArrearPayment;
+use App\Models\CondolenceLevy;
+use App\Models\Deposit;
+use App\Models\Payment;
+use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 
 class MemberDepositsRelationManager extends RelationManager
 {
@@ -21,45 +25,6 @@ class MemberDepositsRelationManager extends RelationManager
     public function form(Schema $schema): Schema
     {
         return $schema->components([]);
-    }
-
-    public function infolist(Schema $schema): Schema
-    {
-        return $schema
-            ->components([
-                Section::make('Deposit')
-                    ->schema([
-                        TextEntry::make('amount')
-                            ->money('NGN'),
-                        TextEntry::make('paid_at')
-                            ->label('Date received')
-                            ->date(),
-                        TextEntry::make('payment_method')
-                            ->badge(),
-                        TextEntry::make('reason')
-                            ->badge()
-                            ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
-                        TextEntry::make('reference')
-                            ->label('Reference'),
-                        TextEntry::make('outstanding_before')
-                            ->label('Arrears before payment')
-                            ->money('NGN'),
-                        TextEntry::make('outstanding_after')
-                            ->label('Outstanding after payment')
-                            ->money('NGN'),
-                        TextEntry::make('opening_applied')
-                            ->label('Of which to opening balance')
-                            ->money('NGN'),
-                        TextEntry::make('credit_added')
-                            ->label('Of which kept as credit')
-                            ->money('NGN'),
-                        TextEntry::make('recorder.name')
-                            ->label('Recorded by'),
-                        TextEntry::make('notes')
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(2),
-            ]);
     }
 
     public function table(Table $table): Table
@@ -83,7 +48,53 @@ class MemberDepositsRelationManager extends RelationManager
                 LogMemberPayment::make(),
             ])
             ->recordActions([
-                ViewAction::make(),
+                Action::make('viewReceipt')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading(false)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalWidth(Width::ThreeExtraLarge)
+                    ->modalContent(function (Deposit $record): View {
+                        $member = $record->member;
+
+                        $splits = Payment::where('member_id', $member->id)
+                            ->where('reference', $record->reference)
+                            ->with('condolence')
+                            ->get()
+                            ->map(fn (Payment $p): array => [
+                                'label' => $p->condolence?->title ?? 'Condolence levy',
+                                'amount' => (float) $p->amount,
+                            ])
+                            ->all();
+
+                        foreach (
+                            ArrearPayment::where('member_id', $member->id)
+                                ->where('reference', $record->reference)
+                                ->with('arrear')
+                                ->get() as $p
+                        ) {
+                            $splits[] = [
+                                'label' => $p->arrear?->title ?? 'Arrear',
+                                'amount' => (float) $p->amount,
+                            ];
+                        }
+
+                        return view('filament.deposit-receipt', [
+                            'member' => $member,
+                            'deposit' => $record,
+                            'splits' => $splits,
+                            'lastArrearDate' => collect([
+                                CondolenceLevy::where('member_id', $member->id)->max('created_at'),
+                                Arrear::where('member_id', $member->id)->max('created_at'),
+                            ])->filter()->max(),
+                            'previousDepositDate' => Deposit::where('member_id', $member->id)
+                                ->where('id', '<', $record->id)
+                                ->orderBy('paid_at', 'desc')
+                                ->orderBy('id', 'desc')
+                                ->value('paid_at'),
+                        ]);
+                    }),
             ])
             ->defaultSort('paid_at', 'desc');
     }
