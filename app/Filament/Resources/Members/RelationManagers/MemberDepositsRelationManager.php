@@ -77,25 +77,6 @@ class MemberDepositsRelationManager extends RelationManager
                 TextColumn::make('payment_method')
                     ->badge()
                     ->toggleable(),
-                TextColumn::make('reason')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—')
-                    ->toggleable(),
-                TextColumn::make('reference')
-                    ->label('Reference')
-                    ->searchable()
-                    ->toggleable(),
-                TextColumn::make('outstanding_before')
-                    ->label('Arrears before')
-                    ->money('NGN')
-                    ->toggleable(),
-                TextColumn::make('outstanding_after')
-                    ->label('Outstanding after')
-                    ->money('NGN')
-                    ->toggleable(),
-                TextColumn::make('recorder.name')
-                    ->label('Recorded by')
-                    ->toggleable(),
             ])
             ->filters([])
             ->headerActions([
