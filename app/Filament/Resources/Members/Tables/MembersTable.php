@@ -31,12 +31,6 @@ class MembersTable
                             ->orWhere('middle_name', 'like', "%{$search}%");
                     })
                     ->sortable(['last_name', 'first_name']),
-                TextColumn::make('email')
-                    ->searchable()
-                    ->toggleable(),
-                TextColumn::make('phone')
-                    ->searchable()
-                    ->toggleable(),
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -45,19 +39,13 @@ class MembersTable
                         MemberStatus::Deceased->value => 'gray',
                         default => 'gray',
                     }),
-                TextColumn::make('date_joined')
-                    ->date()
-                    ->sortable()
-                    ->toggleable(),
-                TextColumn::make('levies_sum_outstanding')
-                    ->label('Outstanding')
-                    ->getStateUsing(fn ($record): float => $record->accountTotals()['outstanding'])
-                    ->money('NGN')
-                    ->toggleable(),
-                TextColumn::make('credit_balance')
-                    ->label('Credit')
-                    ->money('NGN')
-                    ->toggleable(),
+            ])
+            ->filters([
+                SelectFilter::make('status')
+                    ->options(MemberStatus::options()),
+            ])
+            ->recordActions([
+                ViewAction::make(),
             ])
             ->filters([
                 SelectFilter::make('status')
