@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
+use App\Filament\Resources\Members\Pages\ListMembers;
 use App\Filament\Resources\Members\Pages\ViewMember;
 use App\Filament\Resources\Members\RelationManagers\MemberDepositsRelationManager;
 use App\Http\Controllers\ReportController;
@@ -696,5 +697,15 @@ class AssociationCoreTest extends TestCase
         $this->assertEquals('paid', $arrear->refresh()->status);
         // ₦1,000 credit from before + ₦500 excess now.
         $this->assertEquals(1500, (float) $member->refresh()->credit_balance);
+    }
+
+    public function test_member_list_defaults_to_active_with_status_tabs(): void
+    {
+        $secretary = User::factory()->create();
+        $this->actingAs($secretary, 'web');
+
+        $tabs = Livewire::test(ListMembers::class)->instance()->getTabs();
+
+        $this->assertEquals(['active', 'suspended', 'deceased', 'all'], array_keys($tabs));
     }
 }
