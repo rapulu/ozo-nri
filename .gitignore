@@ -1,5 +1,7 @@
 *.log
 .DS_Store
+# Real member data — never commit.
+/ozo_2026.xlsx
 .env
 .env.backup
 .env.production
@@ -32,3 +34,4 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+ozo_2026.xlsx

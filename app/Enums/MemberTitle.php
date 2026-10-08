@@ -13,6 +13,18 @@ enum MemberTitle: string
     case Mr = 'Mr';
     case Mrs = 'Mrs';
     case Ms = 'Ms';
+    case Oba = 'Oba';
+    case Prince = 'Prince';
+    case Ide = 'Ide';
+    case Alhaji = 'Alhaji';
+    case Prof = 'Prof.';
+    case Justice = 'Justice';
+    case ChiefDr = 'Chief Dr.';
+    case PrinceDr = 'Prince Dr.';
+    case IchieDr = 'Ichie Dr.';
+    case ChiefBarr = 'Chief Barr.';
+    case ObaBarr = 'Oba Barr.';
+    case ChiefJustice = 'Chief Justice';
 
     /** @return array<string, string> */
     public static function options(): array
