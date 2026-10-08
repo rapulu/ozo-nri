@@ -140,6 +140,16 @@ class LogMemberPayment extends Action
                 /** @var Member $member */
                 $member = LogMemberPayment::resolveMember($livewire);
 
+                // Previous outstanding becomes the arrears figure of record for this handover.
+                $outstandingBefore = $member->accountTotals()['outstanding'];
+
+                $stampSnapshot = function (Deposit $deposit) use ($member, $outstandingBefore): void {
+                    $deposit->update([
+                        'outstanding_before' => $outstandingBefore,
+                        'outstanding_after' => $member->refresh()->accountTotals()['outstanding'],
+                    ]);
+                };
+
                 if ($data['reason'] === ArrearReason::Condolence->value) {
                     if (($data['allocation'] ?? 'auto') === 'auto') {
                         // Spread across everything owed: levies oldest-first,
@@ -168,7 +178,7 @@ class LogMemberPayment extends Action
                         $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
                         $depositLabel = '₦'.number_format((float) $data['amount'], 0).' deposit';
 
-                        $result = DB::transaction(function () use ($member, $data, $outstanding, $openArrears, $reference, $depositLabel, $remaining): array {
+                        $result = DB::transaction(function () use ($member, $data, $outstanding, $openArrears, $reference, $depositLabel, $remaining, $stampSnapshot): array {
                             $left = $remaining;
                             $splits = [];
                             foreach ($outstanding as $levy) {
@@ -214,7 +224,7 @@ class LogMemberPayment extends Action
                             $splitCount = count($splits) + count($arrearSplits) + ($openingShare > 0 ? 1 : 0);
                             $splitIndex = 0;
 
-                            Deposit::create([
+                            $deposit = Deposit::create([
                                 'member_id' => $member->id,
                                 'amount' => (float) $data['amount'],
                                 'paid_at' => $data['paid_at'],
@@ -266,6 +276,8 @@ class LogMemberPayment extends Action
                                 $member->decrement('opening_arrears', $openingShare);
                             }
 
+                            $stampSnapshot($deposit);
+
                             return [
                                 'touched' => count($splits) + count($arrearSplits),
                                 'openingShare' => $openingShare,
@@ -295,8 +307,8 @@ class LogMemberPayment extends Action
 
                     $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
 
-                    $payment = DB::transaction(function () use ($member, $data, $levy, $reference): Payment {
-                        Deposit::create([
+                    $payment = DB::transaction(function () use ($member, $data, $levy, $reference, $stampSnapshot): Payment {
+                        $deposit = Deposit::create([
                             'member_id' => $member->id,
                             'amount' => (float) $data['amount'],
                             'paid_at' => $data['paid_at'],
@@ -307,7 +319,7 @@ class LogMemberPayment extends Action
                             'notes' => $data['notes'] ?? null,
                         ]);
 
-                        return Payment::create([
+                        $payment = Payment::create([
                             'condolence_levy_id' => $levy->id,
                             'condolence_id' => $levy->condolence_id,
                             'member_id' => $member->id,
@@ -319,6 +331,10 @@ class LogMemberPayment extends Action
                             'recorded_by' => auth()->id(),
                             'notes' => $data['notes'] ?? null,
                         ]);
+
+                        $stampSnapshot($deposit);
+
+                        return $payment;
                     });
 
                     // The model caps the row at what is owed; anything above becomes credit.
@@ -335,8 +351,8 @@ class LogMemberPayment extends Action
 
                     $reference = $data['reference'] ?? ('DEP-'.$member->id.'-'.now()->format('YmdHis'));
 
-                    $arrearPayment = DB::transaction(function () use ($member, $data, $arrear, $reference): ArrearPayment {
-                        Deposit::create([
+                    $arrearPayment = DB::transaction(function () use ($member, $data, $arrear, $reference, $stampSnapshot): ArrearPayment {
+                        $deposit = Deposit::create([
                             'member_id' => $member->id,
                             'amount' => (float) $data['amount'],
                             'paid_at' => $data['paid_at'],
@@ -347,7 +363,7 @@ class LogMemberPayment extends Action
                             'notes' => $data['notes'] ?? null,
                         ]);
 
-                        return ArrearPayment::create([
+                        $arrearPayment = ArrearPayment::create([
                             'arrear_id' => $arrear->id,
                             'member_id' => $member->id,
                             'amount' => $data['amount'],
@@ -358,6 +374,10 @@ class LogMemberPayment extends Action
                             'recorded_by' => auth()->id(),
                             'notes' => $data['notes'] ?? null,
                         ]);
+
+                        $stampSnapshot($deposit);
+
+                        return $arrearPayment;
                     });
 
                     $applied = (float) $arrearPayment->amount;

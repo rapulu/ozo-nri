@@ -54,6 +54,14 @@ class MyDepositResource extends Resource
                     ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
                 TextColumn::make('reference')
                     ->label('Reference'),
+                TextColumn::make('outstanding_before')
+                    ->label('Owed before')
+                    ->money('NGN')
+                    ->toggleable(),
+                TextColumn::make('outstanding_after')
+                    ->label('Owed after')
+                    ->money('NGN')
+                    ->toggleable(),
             ])
             ->defaultSort('paid_at', 'desc')
             ->filters([])

@@ -45,6 +45,8 @@ h3 { margin: 14px 0 4px 0; }
 <th>Method</th>
 <th>Reason</th>
 <th>Reference</th>
+<th>Arrears before (₦)</th>
+<th>Outstanding after (₦)</th>
 </tr>
 </thead>
 <tbody>
@@ -56,9 +58,11 @@ h3 { margin: 14px 0 4px 0; }
 <td>{{ \App\Enums\PaymentMethod::options()[$deposit->payment_method] ?? $deposit->payment_method ?? '—' }}</td>
 <td>{{ $deposit->reason ? (\App\Enums\ArrearReason::options()[$deposit->reason] ?? $deposit->reason) : '—' }}</td>
 <td>{{ $deposit->reference ?? '—' }}</td>
+<td class="right">{{ $deposit->outstanding_before === null ? '—' : number_format((float) $deposit->outstanding_before, 2) }}</td>
+<td class="right">{{ $deposit->outstanding_after === null ? '—' : number_format((float) $deposit->outstanding_after, 2) }}</td>
 </tr>
 @empty
-<tr><td colspan="6" style="text-align:center;">No payments recorded yet.</td></tr>
+<tr><td colspan="8" style="text-align:center;">No payments recorded yet.</td></tr>
 @endforelse
 </tbody>
 </table>

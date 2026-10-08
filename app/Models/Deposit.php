@@ -16,6 +16,8 @@ class Deposit extends Model
         'reason',
         'opening_applied',
         'credit_added',
+        'outstanding_before',
+        'outstanding_after',
         'recorded_by',
         'notes',
     ];
@@ -28,6 +30,9 @@ class Deposit extends Model
         return [
             'amount' => 'decimal:2',
             'opening_applied' => 'decimal:2',
+            'credit_added' => 'decimal:2',
+            'outstanding_before' => 'decimal:2',
+            'outstanding_after' => 'decimal:2',
             'paid_at' => 'date',
         ];
     }

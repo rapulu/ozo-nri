@@ -523,6 +523,9 @@ class AssociationCoreTest extends TestCase
         $deposit = Deposit::where('member_id', $member->id)->firstOrFail();
         $this->assertEquals(7000, (float) $deposit->amount);
         $this->assertEquals($splits->first()->reference, $deposit->reference);
+        // Previous outstanding kept as arrears, new balance after deduction.
+        $this->assertEquals(15000, (float) $deposit->outstanding_before);
+        $this->assertEquals(8000, (float) $deposit->outstanding_after);
     }
 
     public function test_log_payment_accepts_thousand_separated_amounts(): void

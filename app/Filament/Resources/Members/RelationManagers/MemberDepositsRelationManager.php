@@ -41,6 +41,12 @@ class MemberDepositsRelationManager extends RelationManager
                             ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
                         TextEntry::make('reference')
                             ->label('Reference'),
+                        TextEntry::make('outstanding_before')
+                            ->label('Arrears before payment')
+                            ->money('NGN'),
+                        TextEntry::make('outstanding_after')
+                            ->label('Outstanding after payment')
+                            ->money('NGN'),
                         TextEntry::make('opening_applied')
                             ->label('Of which to opening balance')
                             ->money('NGN'),
@@ -78,6 +84,14 @@ class MemberDepositsRelationManager extends RelationManager
                 TextColumn::make('reference')
                     ->label('Reference')
                     ->searchable()
+                    ->toggleable(),
+                TextColumn::make('outstanding_before')
+                    ->label('Arrears before')
+                    ->money('NGN')
+                    ->toggleable(),
+                TextColumn::make('outstanding_after')
+                    ->label('Outstanding after')
+                    ->money('NGN')
                     ->toggleable(),
                 TextColumn::make('recorder.name')
                     ->label('Recorded by')
