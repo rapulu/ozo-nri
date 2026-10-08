@@ -393,6 +393,9 @@ class ImportOzoLedger extends Command
             // Opening balance is the oldest debt; bucket payments eat it first.
             $opening = max(0, (float) $member->opening_arrears);
 
+            // Running outstanding for per-deposit before/after snapshots.
+            $running = $opening + (float) CondolenceLevy::where('member_id', $member->id)->sum('amount_expected');
+
             foreach (self::BUCKETS as $bucket) {
                 $paid = self::amountCell($row[$bucket['pay_col']] ?? null);
 
@@ -433,6 +436,8 @@ class ImportOzoLedger extends Command
                 $creditShare = max(0, $remaining);
 
                 $reference = 'LEDGER-'.$bucket['code'].'-M'.$member->id;
+                $before = $running;
+                $running = max(0, $running - $paid);
 
                 Deposit::create([
                     'member_id' => $member->id,
@@ -441,6 +446,10 @@ class ImportOzoLedger extends Command
                     'payment_method' => PaymentMethod::Other->value,
                     'reference' => $reference,
                     'reason' => ArrearReason::Condolence->value,
+                    'opening_applied' => $openingShare,
+                    'credit_added' => $creditShare,
+                    'outstanding_before' => $before,
+                    'outstanding_after' => $running,
                     'recorded_by' => null,
                     'notes' => 'Imported from ozo_2026.xlsx ledger.',
                 ]);
