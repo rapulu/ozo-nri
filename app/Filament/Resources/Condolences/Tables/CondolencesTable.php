@@ -20,10 +20,6 @@ class CondolencesTable
                 TextColumn::make('title')
                     ->searchable()
                     ->limit(40),
-                TextColumn::make('deceasedMember.full_name')
-                    ->label('Deceased')
-                    ->getStateUsing(fn ($record): ?string => $record->deceasedMember?->full_name)
-                    ->searchable(),
                 TextColumn::make('amount_per_member')
                     ->label('Per member')
                     ->money('NGN')
@@ -32,29 +28,6 @@ class CondolencesTable
                     ->label('Members levied')
                     ->counts('levies')
                     ->sortable(),
-                TextColumn::make('collected')
-                    ->label('Collected')
-                    ->getStateUsing(fn ($record): float => (float) $record->levies()->sum('amount_paid'))
-                    ->money('NGN'),
-                TextColumn::make('outstanding')
-                    ->label('Outstanding')
-                    ->getStateUsing(function ($record): float {
-                        $expected = (float) $record->levies()->sum('amount_expected');
-                        $paid = (float) $record->levies()->sum('amount_paid');
-
-                        return $expected - $paid;
-                    })
-                    ->money('NGN'),
-                TextColumn::make('date_announced')
-                    ->date()
-                    ->sortable(),
-                TextColumn::make('status')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        CondolenceStatus::Open->value => 'success',
-                        CondolenceStatus::Closed->value => 'gray',
-                        default => 'gray',
-                    }),
             ])
             ->filters([
                 SelectFilter::make('status')
