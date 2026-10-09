@@ -29,7 +29,7 @@ class LeviesRelationManager extends RelationManager
         return $schema
             ->components([
                 TextInput::make('amount_expected')
-                    ->label('Arrears / expected (₦)')
+                    ->label('Levy amount (₦)')
                     ->required()
                     ->numeric()
                     ->stripCharacters([',', ' '])
@@ -48,17 +48,22 @@ class LeviesRelationManager extends RelationManager
                     ->label('Member')
                     ->getStateUsing(fn (CondolenceLevy $record): string => $record->member?->full_name ?? '—')
                     ->searchable(),
-                TextColumn::make('amount_expected')
+                TextColumn::make('carried_arrears')
                     ->label('Arrears (₦)')
+                    ->getStateUsing(fn (CondolenceLevy $record): float => $record->carriedArrears())
+                    ->money('NGN')
+                    ->sortable(),
+                TextColumn::make('amount_expected')
+                    ->label('Levy (₦)')
                     ->money('NGN')
                     ->sortable(),
                 TextColumn::make('amount_paid')
                     ->label('Received (₦)')
                     ->money('NGN')
                     ->sortable(),
-                TextColumn::make('balance')
+                TextColumn::make('running_outstanding')
                     ->label('Outstanding (₦)')
-                    ->getStateUsing(fn (CondolenceLevy $record): float => (float) $record->amount_expected - (float) $record->amount_paid)
+                    ->getStateUsing(fn (CondolenceLevy $record): float => $record->runningOutstanding())
                     ->money('NGN'),
                 TextColumn::make('last_payment_date')
                     ->label('Last paid')

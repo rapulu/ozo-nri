@@ -97,13 +97,16 @@ $paid = $levy ? (float) $levy->amount_paid : 0.0;
 $expected = $levy ? (float) $levy->amount_expected : 0.0;
 $bal = $expected - $paid;
 $dates = $levy ? $levy->payments->pluck('paid_at')->filter()->map(fn ($d) => $d->format('d/m/y'))->unique()->join(', ') : '';
+$run = $runningMap[$m->id.'_'.$c->id] ?? null;
+$carry = $run['arrears'] ?? $expected;
+$running = $run['outstanding'] ?? $bal;
 @endphp
 @if(!$levy)
 <td class="arrears">—</td>
 <td class="received">—</td>
 <td class="owing">—</td>
 @else
-<td class="arrears">₦{{ number_format($expected, 0) }}<br><span class="small">{{ $c->date_announced?->format('d/m/y') }}</span></td>
+<td class="arrears">₦{{ number_format($carry, 0) }}<br><span class="small">{{ $c->date_announced?->format('d/m/y') }}</span></td>
 <td class="received">
 @if($paid > 0)
 <span class="{{ $bal <= 0 ? 'paid' : 'partial' }}"><strong>₦{{ number_format($paid, 0) }}</strong><br><span class="small">{{ $dates }}</span></span>
@@ -114,10 +117,10 @@ $dates = $levy ? $levy->payments->pluck('paid_at')->filter()->map(fn ($d) => $d-
 <td class="owing">
 @if($levy->status === 'exempted')
 <span class="small">Exempt</span>
-@elseif($bal <= 0)
+@elseif($running <= 0)
 ₦0
 @else
-<span class="unpaid"><strong>₦{{ number_format($bal, 0) }}</strong><br><span class="small">{{ $c->due_date?->format('d/m/y') ?? '—' }}</span></span>
+<span class="unpaid"><strong>₦{{ number_format($running, 0) }}</strong><br><span class="small">{{ $c->due_date?->format('d/m/y') ?? '—' }}</span></span>
 @endif
 </td>
 @endif

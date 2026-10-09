@@ -51,6 +51,49 @@ class CondolenceLevy extends Model
         return (float) $this->amount_expected - (float) $this->amount_paid;
     }
 
+    /**
+     * Running-balance chain, mirroring the ledger: arrears carried into this
+     * condolence = opening balance still standing plus older levies minus
+     * what has been paid against them. The last row always equals the
+     * member's current levies outstanding.
+     */
+    public function carriedArrears(): float
+    {
+        $announced = $this->condolence->date_announced?->format('Y-m-d') ?? '9999-12-31';
+        $memberId = $this->member_id;
+
+        $olderIds = CondolenceLevy::where('member_id', $memberId)
+            ->join('condolences', 'condolences.id', '=', 'condolence_levies.condolence_id')
+            ->where(function ($query) use ($announced): void {
+                $query->where('condolences.date_announced', '<', $announced)
+                    ->orWhere(function ($query) use ($announced): void {
+                        $query->where('condolences.date_announced', $announced)
+                            ->where('condolence_levies.id', '<', $this->id);
+                    });
+            })
+            ->pluck('condolence_levies.id');
+
+        $opening = max(0, (float) $this->member->opening_arrears)
+            + (float) Deposit::where('member_id', $memberId)->sum('opening_applied');
+        $olderExpected = (float) CondolenceLevy::whereIn('id', $olderIds)->sum('amount_expected');
+        $paidOlder = (float) Payment::where('member_id', $memberId)
+            ->whereIn('condolence_levy_id', $olderIds)
+            ->sum('amount');
+
+        return max(0, round($opening + $olderExpected - $paidOlder, 2));
+    }
+
+    /**
+     * New outstanding after this condolence: arrears + levy − received.
+     */
+    public function runningOutstanding(): float
+    {
+        return max(0, round(
+            $this->carriedArrears() + (float) $this->amount_expected - (float) $this->payments()->sum('amount'),
+            2
+        ));
+    }
+
     public function recalculate(): void
     {
         if ($this->status === LevyStatus::Exempted->value) {

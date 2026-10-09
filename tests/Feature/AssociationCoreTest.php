@@ -711,4 +711,46 @@ class AssociationCoreTest extends TestCase
 
         $this->assertEquals(['active', 'suspended', 'deceased', 'all'], array_keys($tabs));
     }
+
+    public function test_levy_chain_carries_previous_outstanding_forward(): void
+    {
+        $member = Member::factory()->create([
+            'status' => MemberStatus::Active->value,
+            'opening_arrears' => 12000,
+        ]);
+
+        $older = Condolence::factory()->create([
+            'deceased_member_id' => Member::factory()->deceased()->create()->id,
+            'amount_per_member' => 3000,
+            'date_announced' => now()->subMonths(2)->toDateString(),
+        ]);
+        $older->generateLevies();
+
+        $newer = Condolence::factory()->create([
+            'deceased_member_id' => Member::factory()->deceased()->create()->id,
+            'amount_per_member' => 3000,
+            'date_announced' => now()->toDateString(),
+        ]);
+        $newer->generateLevies();
+
+        $olderLevy = CondolenceLevy::where('condolence_id', $older->id)->where('member_id', $member->id)->firstOrFail();
+        $newerLevy = CondolenceLevy::where('condolence_id', $newer->id)->where('member_id', $member->id)->firstOrFail();
+
+        Payment::create([
+            'condolence_levy_id' => $olderLevy->id,
+            'condolence_id' => $older->id,
+            'member_id' => $member->id,
+            'amount' => 3000,
+            'paid_at' => now()->subMonth()->toDateString(),
+            'payment_method' => 'cash',
+        ]);
+
+        // Arrears into the older condolence is the untouched opening balance.
+        $this->assertEquals(12000, $olderLevy->refresh()->carriedArrears());
+        $this->assertEquals(12000, $olderLevy->runningOutstanding());
+
+        // Next arrears = previous outstanding; new outstanding adds the levy.
+        $this->assertEquals(12000, $newerLevy->refresh()->carriedArrears());
+        $this->assertEquals(15000, $newerLevy->runningOutstanding());
+    }
 }

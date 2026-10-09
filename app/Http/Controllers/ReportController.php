@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\MemberStatus;
 use App\Models\Condolence;
 use App\Models\CondolenceLevy;
+use App\Models\Deposit;
 use App\Models\Member;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -263,8 +264,9 @@ class ReportController extends Controller
      * @param  \Illuminate\Database\Eloquent\Collection<int, Condolence>  $condolences
      * @param  \Illuminate\Database\Eloquent\Collection<int, Member>  $members
      * @param  array<string, array{expected: float, collected: float, outstanding: float}>|null  $globalPerCondolence
+     * @param  array{expected: float, collected: float, outstanding: float}|null  $globalOpening
      */
-    private function renderMatrixChunk($condolences, $members, string $rangeLabel, string $statusFilter, ?array $globalPerCondolence = null, float $grandExpected = 0.0, float $grandCollected = 0.0, int $startIndex = 0, bool $showTotals = true, bool $showHeader = true, bool $showSignature = true, int $totalMembers = 0): string
+    private function renderMatrixChunk($condolences, $members, string $rangeLabel, string $statusFilter, ?array $globalPerCondolence = null, float $grandExpected = 0.0, float $grandCollected = 0.0, int $startIndex = 0, bool $showTotals = true, bool $showHeader = true, bool $showSignature = true, int $totalMembers = 0, ?array $globalOpening = null, float $grandCredit = 0.0): string
     {
         $condolenceIds = $condolences->pluck('id')->all();
         $memberIds = $members->pluck('id')->all();
@@ -275,6 +277,21 @@ class ReportController extends Controller
             ->whereIn('member_id', $memberIds)
             ->get()
             ->keyBy(fn (CondolenceLevy $levy): string => $levy->member_id.'_'.$levy->condolence_id);
+
+        $appliedByMember = Deposit::whereIn('member_id', $memberIds)
+            ->selectRaw('member_id, SUM(opening_applied) as applied')
+            ->groupBy('member_id')
+            ->pluck('applied', 'member_id');
+
+        $announcedByCondolence = $condolences->mapWithKeys(
+            fn (Condolence $c): array => [$c->id => $c->date_announced?->format('Y-m-d') ?? '9999-12-31']
+        )->all();
+
+        /** @var array<string, array{arrears: float, outstanding: float}> $runningMap */
+        $runningMap = [];
+        /** @var array<int, array{expected: float, collected: float, outstanding: float}> $openingMap */
+        $openingMap = [];
+        $openingTotals = ['expected' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
 
         $perCondolence = [];
         foreach ($condolences as $condolence) {
@@ -296,38 +313,69 @@ class ReportController extends Controller
 
         $perMember = [];
         foreach ($members as $member) {
-            $expected = 0.0;
-            $paid = 0.0;
-            foreach ($condolences as $condolence) {
-                $levy = $levyMap->get($member->id.'_'.$condolence->id);
-                if ($levy) {
-                    $expected += (float) $levy->amount_expected;
-                    $paid += (float) $levy->amount_paid;
-                }
+            $openingRemaining = max(0, (float) $member->opening_arrears);
+            $openingApplied = max(0, (float) ($appliedByMember[$member->id] ?? 0));
+            $openingMap[$member->id] = [
+                'expected' => $openingRemaining + $openingApplied,
+                'collected' => $openingApplied,
+                'outstanding' => $openingRemaining,
+            ];
+
+            $expected = $openingRemaining + $openingApplied;
+            $paid = $openingApplied;
+
+            $memberLevies = $levyMap
+                ->filter(fn (CondolenceLevy $l): bool => $l->member_id === $member->id)
+                ->sortBy(fn (CondolenceLevy $l): string => ($announcedByCondolence[$l->condolence_id] ?? '9999-12-31').'-'.str_pad((string) $l->id, 10, '0', STR_PAD_LEFT))
+                ->values();
+
+            $running = $expected - $paid;
+            foreach ($memberLevies as $levy) {
+                $arrears = $running;
+                $levyExpected = (float) $levy->amount_expected;
+                $levyPaid = (float) $levy->payments->sum('amount');
+                $running = max(0, round($arrears + $levyExpected - $levyPaid, 2));
+                $runningMap[$member->id.'_'.$levy->condolence_id] = [
+                    'arrears' => $arrears,
+                    'outstanding' => $running,
+                ];
+                $expected += $levyExpected;
+                $paid += $levyPaid;
             }
+
             $perMember[$member->id] = [
                 'expected' => $expected,
                 'paid' => $paid,
                 'outstanding' => $expected - $paid,
             ];
+
+            $openingTotals['expected'] += $openingRemaining + $openingApplied;
+            $openingTotals['collected'] += $openingApplied;
+            $openingTotals['outstanding'] += $openingRemaining;
         }
 
         if ($globalPerCondolence !== null) {
             $perCondolence = $globalPerCondolence;
         } else {
-            $grandExpected = array_sum(array_column($perCondolence, 'expected'));
-            $grandCollected = array_sum(array_column($perCondolence, 'collected'));
+            $grandExpected = array_sum(array_column($perCondolence, 'expected')) + $openingTotals['expected'];
+            $grandCollected = array_sum(array_column($perCondolence, 'collected')) + $openingTotals['collected'];
+            $globalOpening = $openingTotals;
+            $grandCredit = (float) $members->sum(fn ($m): float => max(0, (float) $m->credit_balance));
         }
 
         $pdf = Pdf::loadView('reports.condolences-matrix', [
             'condolences' => $condolences,
             'members' => $members,
             'levyMap' => $levyMap,
+            'openingMap' => $openingMap,
+            'runningMap' => $runningMap,
             'perCondolence' => $perCondolence,
             'perMember' => $perMember,
             'grandExpected' => $grandExpected,
             'grandCollected' => $grandCollected,
             'grandOutstanding' => $grandExpected - $grandCollected,
+            'grandOpening' => $globalOpening ?? $openingTotals,
+            'grandCredit' => $grandCredit,
             'statusFilter' => $statusFilter,
             'rangeLabel' => $rangeLabel,
             'startIndex' => $startIndex,
@@ -375,6 +423,16 @@ class ReportController extends Controller
         $grandExpected = array_sum(array_column($globalPerCondolence, 'expected'));
         $grandCollected = array_sum(array_column($globalPerCondolence, 'collected'));
 
+        $activeIds = Member::where('status', MemberStatus::Active->value)->pluck('id');
+        $openingRemaining = (float) Member::whereIn('id', $activeIds)->sum('opening_arrears');
+        $openingCollected = (float) Deposit::whereIn('member_id', $activeIds)->sum('opening_applied');
+        $globalOpening = [
+            'expected' => $openingRemaining + $openingCollected,
+            'collected' => $openingCollected,
+            'outstanding' => $openingRemaining,
+        ];
+        $globalCredit = (float) Member::whereIn('id', $activeIds)->sum('credit_balance');
+
         $files = [];
         try {
             $size = self::MATRIX_PDF_CHUNK_SIZE;
@@ -399,6 +457,8 @@ class ReportController extends Controller
                     $offset === 0,
                     $offset + $size >= $totalMembers,
                     $totalMembers,
+                    $globalOpening,
+                    $globalCredit,
                 );
 
                 $path = tempnam(sys_get_temp_dir(), 'matrix').'.pdf';

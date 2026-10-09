@@ -105,8 +105,10 @@ class Condolence extends Model
             ->where('id', '!=', $this->deceased_member_id)
             ->pluck('id');
 
+        $created = 0;
+
         foreach ($memberIds as $memberId) {
-            CondolenceLevy::firstOrCreate(
+            $levy = CondolenceLevy::firstOrCreate(
                 [
                     'condolence_id' => $this->id,
                     'member_id' => $memberId,
@@ -117,13 +119,19 @@ class Condolence extends Model
                     'status' => LevyStatus::Unpaid->value,
                 ]
             );
+
+            if ($levy->wasRecentlyCreated) {
+                $created++;
+            }
         }
 
-        // Members holding credit have it eaten by the new levies automatically.
-        Member::query()
-            ->whereIn('id', $memberIds)
-            ->where('credit_balance', '>', 0)
-            ->each(fn (Member $member): float => $member->applyCredit());
+        // Only fresh levies pull credit; re-saving a condolence must not move money.
+        if ($created > 0) {
+            Member::query()
+                ->whereIn('id', $memberIds)
+                ->where('credit_balance', '>', 0)
+                ->each(fn (Member $member): float => $member->applyCredit());
+        }
     }
 
     public function totalExpected(): float
