@@ -8,6 +8,7 @@ use Database\Factories\CondolenceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Validation\ValidationException;
 
@@ -61,6 +62,19 @@ class Condolence extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Payment records sourced from member deposits (bulk handovers),
+     * rather than the per-levy split rows.
+     *
+     * @return BelongsToMany<Deposit, $this>
+     */
+    public function deposits(): BelongsToMany
+    {
+        return $this->belongsToMany(Deposit::class, 'deposit_allocations', 'condolence_id', 'deposit_id')
+            ->withPivot('amount')
+            ->withTimestamps();
     }
 
     protected static function booted(): void

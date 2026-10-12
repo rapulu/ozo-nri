@@ -753,4 +753,53 @@ class AssociationCoreTest extends TestCase
         $this->assertEquals(12000, $newerLevy->refresh()->carriedArrears());
         $this->assertEquals(15000, $newerLevy->runningOutstanding());
     }
+
+    public function test_condolence_reads_payment_records_from_deposits(): void
+    {
+        $secretary = User::factory()->create();
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+
+        $older = Condolence::factory()->create([
+            'deceased_member_id' => Member::factory()->deceased()->create()->id,
+            'amount_per_member' => 5000,
+            'date_announced' => now()->subMonths(2)->toDateString(),
+        ]);
+        $older->generateLevies();
+
+        $newer = Condolence::factory()->create([
+            'deceased_member_id' => Member::factory()->deceased()->create()->id,
+            'amount_per_member' => 10000,
+            'date_announced' => now()->toDateString(),
+        ]);
+        $newer->generateLevies();
+
+        $this->actingAs($secretary, 'web');
+
+        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
+            ->callTableAction('logPayment', null, [
+                'reason' => 'condolence',
+                'allocation' => 'auto',
+                'amount' => 7000,
+                'paid_at' => now()->toDateString(),
+                'payment_method' => 'cash',
+            ])
+            ->assertHasNoErrors();
+
+        // One bulk deposit, linked to both levies it touched.
+        $deposit = Deposit::where('member_id', $member->id)->firstOrFail();
+        $this->assertEquals(2, $deposit->allocations()->count());
+        $this->assertEquals(
+            [5000.0, 2000.0],
+            $deposit->allocations()->orderBy('id')->pluck('amount')->map(fn ($v): float => (float) $v)->all()
+        );
+
+        // Each condolence reads the same figures from deposits as from splits.
+        $olderLevy = CondolenceLevy::where('condolence_id', $older->id)->where('member_id', $member->id)->firstOrFail();
+        $this->assertTrue($older->deposits()->where('deposits.id', $deposit->id)->exists());
+        $this->assertEquals(
+            (float) $older->payments()->where('member_id', $member->id)->sum('amount'),
+            (float) $older->deposits()->where('deposits.member_id', $member->id)->sum('deposit_allocations.amount')
+        );
+        $this->assertEquals(5000, (float) $olderLevy->deposits()->sum('deposit_allocations.amount'));
+    }
 }

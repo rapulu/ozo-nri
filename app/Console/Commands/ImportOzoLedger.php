@@ -23,9 +23,9 @@ use ZipArchive;
 
 class ImportOzoLedger extends Command
 {
-    protected $signature = 'import:ozo-ledger {--file=ozo_2026.xlsx} {--force : skip the wipe confirmation}';
+    protected $signature = 'import:ozo-ledger {--file=ozo_condolence_levy.xlsx} {--force : skip the wipe confirmation} {--member= : import only the member whose name contains this text}';
 
-    protected $description = 'Import members, condolences, levies and payments from the ozo_2026 spreadsheet ledger.';
+    protected $description = 'Import members, condolences, levies and payments from the ozo_condolence_levy spreadsheet ledger.';
 
     /**
      * Condolences in the ledger, oldest first.
@@ -85,6 +85,20 @@ class ImportOzoLedger extends Command
 
         $rows = self::readXlsxRows($path);
         $members = self::memberRows($rows);
+
+        if ($filter = $this->option('member')) {
+            $members = array_values(array_filter(
+                $members,
+                fn (array $row): bool => str_contains(strtolower((string) ($row[self::NAME_COL] ?? '')), strtolower($filter))
+            ));
+
+            if ($members === []) {
+                $this->error("No member matching '{$filter}'.");
+
+                return self::FAILURE;
+            }
+        }
+
         $this->info('Member rows in sheet: '.count($members));
 
         DB::transaction(function () use ($members): void {
@@ -304,7 +318,7 @@ class ImportOzoLedger extends Command
                 'date_announced' => $def['announced'],
                 'due_date' => $def['due'],
                 'status' => 'open',
-                'description' => 'Imported from ozo_2026.xlsx ledger.',
+                'description' => 'Imported from ozo_condolence_levy.xlsx ledger.',
             ]);
 
             $this->line("Condolence: {$map[$def['key']]->title}");
@@ -393,19 +407,63 @@ class ImportOzoLedger extends Command
             // Opening balance is the oldest debt; bucket payments eat it first.
             $opening = max(0, (float) $member->opening_arrears);
 
-            // Running outstanding for per-deposit before/after snapshots.
-            $running = $opening + (float) CondolenceLevy::where('member_id', $member->id)->sum('amount_expected');
+            // Point-in-time running outstanding for deposit snapshots, exactly
+            // like the sheet: previous outstanding + newly announced levies.
+            $running = $opening;
+            $previousBucketDate = '';
 
             foreach (self::BUCKETS as $bucket) {
                 $paid = self::amountCell($row[$bucket['pay_col']] ?? null);
+
+                // Arrears for this handover exclude the bucket's own levies;
+                // they join the balance right after, like the sheet's own rows.
+                $before = $running;
+                foreach ($bucket['levies'] as $col => $key) {
+                    $running += (float) CondolenceLevy::where('condolence_id', $condolences[$key]->id)
+                        ->where('member_id', $member->id)
+                        ->sum('amount_expected');
+                }
 
                 if ($paid <= 0) {
                     continue;
                 }
 
-                // Every levy announced up to the payment date, oldest first.
-                $targets = CondolenceLevy::where('condolence_levies.member_id', $member->id)
+                // Bucket money belongs to the bucket's own levies first.
+                $remaining = $paid;
+                $splits = [];
+
+                foreach ($bucket['levies'] as $col => $key) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+                    $levy = CondolenceLevy::where('condolence_id', $condolences[$key]->id)
+                        ->where('member_id', $member->id)
+                        ->whereIn('status', [LevyStatus::Unpaid->value, LevyStatus::Partial->value])
+                        ->first();
+
+                    if (! $levy) {
+                        continue;
+                    }
+
+                    $due = max(0, (float) $levy->amount_expected - (float) $levy->amount_paid);
+                    $share = min($remaining, $due);
+                    if ($share > 0) {
+                        $splits[] = ['levy' => $levy, 'share' => $share];
+                        $remaining -= $share;
+                    }
+                }
+
+                $touchedIds = array_map(fn ($split): int => $split['levy']->id, $splits);
+
+                // Spillover goes to the oldest debt still standing
+                // (opening balance dated 2024-05-31 sorts first naturally).
+                $openingShare = min($remaining, $opening);
+                $remaining -= $openingShare;
+                $opening -= $openingShare;
+
+                $older = CondolenceLevy::where('condolence_levies.member_id', $member->id)
                     ->whereIn('condolence_levies.status', [LevyStatus::Unpaid->value, LevyStatus::Partial->value])
+                    ->whereNotIn('condolence_levies.id', $touchedIds)
                     ->join('condolences', 'condolences.id', '=', 'condolence_levies.condolence_id')
                     ->where('condolences.date_announced', '<=', $bucket['paid_at'])
                     ->orderBy('condolences.date_announced')
@@ -413,14 +471,7 @@ class ImportOzoLedger extends Command
                     ->select('condolence_levies.*')
                     ->get();
 
-                $remaining = $paid;
-                $splits = [];
-
-                $openingShare = min($remaining, $opening);
-                $remaining -= $openingShare;
-                $opening -= $openingShare;
-
-                foreach ($targets as $levy) {
+                foreach ($older as $levy) {
                     if ($remaining <= 0) {
                         break;
                     }
@@ -436,7 +487,6 @@ class ImportOzoLedger extends Command
                 $creditShare = max(0, $remaining);
 
                 $reference = 'LEDGER-'.$bucket['code'].'-M'.$member->id;
-                $before = $running;
                 $running = max(0, $running - $paid);
 
                 Deposit::create([
@@ -451,7 +501,7 @@ class ImportOzoLedger extends Command
                     'outstanding_before' => $before,
                     'outstanding_after' => $running,
                     'recorded_by' => null,
-                    'notes' => 'Imported from ozo_2026.xlsx ledger.',
+                    'notes' => 'Imported from ozo_condolence_levy.xlsx ledger.',
                 ]);
                 $depositCount++;
 
@@ -483,6 +533,7 @@ class ImportOzoLedger extends Command
 
                 $member->refresh();
                 $opening = max(0, (float) $member->opening_arrears);
+                $previousBucketDate = $bucket['paid_at'];
             }
 
             $levyCount = CondolenceLevy::count();

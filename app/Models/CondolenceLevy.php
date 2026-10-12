@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\LevyStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CondolenceLevy extends Model
@@ -46,6 +47,14 @@ class CondolenceLevy extends Model
         return $this->hasMany(Payment::class, 'condolence_levy_id');
     }
 
+    /** @return BelongsToMany<Deposit, $this> */
+    public function deposits(): BelongsToMany
+    {
+        return $this->belongsToMany(Deposit::class, 'deposit_allocations', 'condolence_levy_id', 'deposit_id')
+            ->withPivot('amount')
+            ->withTimestamps();
+    }
+
     public function getBalanceAttribute(): float
     {
         return (float) $this->amount_expected - (float) $this->amount_paid;
@@ -54,8 +63,8 @@ class CondolenceLevy extends Model
     /**
      * Running-balance chain, mirroring the ledger: arrears carried into this
      * condolence = opening balance still standing plus older levies minus
-     * what has been paid against them. The last row always equals the
-     * member's current levies outstanding.
+     * what has been paid against them. Live figures, so the last row always
+     * equals the member's current outstanding.
      */
     public function carriedArrears(): float
     {
@@ -65,16 +74,15 @@ class CondolenceLevy extends Model
         $olderIds = CondolenceLevy::where('member_id', $memberId)
             ->join('condolences', 'condolences.id', '=', 'condolence_levies.condolence_id')
             ->where(function ($query) use ($announced): void {
-                $query->where('condolences.date_announced', '<', $announced)
+                $query->whereDate('condolences.date_announced', '<', $announced)
                     ->orWhere(function ($query) use ($announced): void {
-                        $query->where('condolences.date_announced', $announced)
+                        $query->whereDate('condolences.date_announced', $announced)
                             ->where('condolence_levies.id', '<', $this->id);
                     });
             })
             ->pluck('condolence_levies.id');
 
-        $opening = max(0, (float) $this->member->opening_arrears)
-            + (float) Deposit::where('member_id', $memberId)->sum('opening_applied');
+        $opening = max(0, (float) $this->member->opening_arrears);
         $olderExpected = (float) CondolenceLevy::whereIn('id', $olderIds)->sum('amount_expected');
         $paidOlder = (float) Payment::where('member_id', $memberId)
             ->whereIn('condolence_levy_id', $olderIds)
