@@ -9,6 +9,7 @@ use App\Models\Arrear;
 use App\Models\ArrearPayment;
 use App\Models\CondolenceLevy;
 use App\Models\Deposit;
+use App\Models\DepositAllocation;
 use App\Models\Member;
 use App\Models\Payment;
 use Filament\Actions\Action;
@@ -253,6 +254,13 @@ class LogMemberPayment extends Action
                                     'recorded_by' => auth()->id(),
                                     'notes' => $note,
                                 ]);
+
+                                DepositAllocation::create([
+                                    'deposit_id' => $deposit->id,
+                                    'condolence_levy_id' => $split['levy']->id,
+                                    'condolence_id' => $split['levy']->condolence_id,
+                                    'amount' => $split['share'],
+                                ]);
                             }
 
                             foreach ($arrearSplits as $split) {
@@ -330,6 +338,13 @@ class LogMemberPayment extends Action
                             'reason' => ArrearReason::Condolence->value,
                             'recorded_by' => auth()->id(),
                             'notes' => $data['notes'] ?? null,
+                        ]);
+
+                        DepositAllocation::create([
+                            'deposit_id' => $deposit->id,
+                            'condolence_levy_id' => $levy->id,
+                            'condolence_id' => $levy->condolence_id,
+                            'amount' => (float) $payment->amount,
                         ]);
 
                         $stampSnapshot($deposit);

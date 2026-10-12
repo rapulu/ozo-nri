@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Deposit extends Model
 {
@@ -47,6 +49,28 @@ class Deposit extends Model
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /** @return HasMany<DepositAllocation, $this> */
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(DepositAllocation::class);
+    }
+
+    /** @return BelongsToMany<CondolenceLevy, $this> */
+    public function levies(): BelongsToMany
+    {
+        return $this->belongsToMany(CondolenceLevy::class, 'deposit_allocations', 'deposit_id', 'condolence_levy_id')
+            ->withPivot('amount')
+            ->withTimestamps();
+    }
+
+    /** @return BelongsToMany<Condolence, $this> */
+    public function condolences(): BelongsToMany
+    {
+        return $this->belongsToMany(Condolence::class, 'deposit_allocations', 'deposit_id', 'condolence_id')
+            ->withPivot('amount')
+            ->withTimestamps();
     }
 
     /**

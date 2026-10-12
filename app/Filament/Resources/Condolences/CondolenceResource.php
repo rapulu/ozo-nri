@@ -6,6 +6,7 @@ use App\Filament\Resources\Condolences\Pages\CreateCondolence;
 use App\Filament\Resources\Condolences\Pages\EditCondolence;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
 use App\Filament\Resources\Condolences\Pages\ViewCondolence;
+use App\Filament\Resources\Condolences\RelationManagers\CondolenceDepositsRelationManager;
 use App\Filament\Resources\Condolences\RelationManagers\LeviesRelationManager;
 use App\Filament\Resources\Condolences\Schemas\CondolenceForm;
 use App\Filament\Resources\Condolences\Schemas\CondolenceInfolist;
@@ -48,6 +49,7 @@ class CondolenceResource extends Resource
     {
         return [
             LeviesRelationManager::class,
+            CondolenceDepositsRelationManager::class,
         ];
     }
 
