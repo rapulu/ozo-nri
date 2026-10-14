@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\Members\RelationManagers;
 
-use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Filament\Resources\Members\Actions\LogMemberPayment;
-use App\Models\Arrear;
-use App\Models\ArrearPayment;
 use App\Models\CondolenceLevy;
 use App\Models\Deposit;
 use App\Models\Payment;
@@ -45,9 +42,6 @@ class MemberDepositsRelationManager extends RelationManager
                     ->maxDate(now()),
                 Select::make('payment_method')
                     ->options(PaymentMethod::options())
-                    ->required(),
-                Select::make('reason')
-                    ->options(ArrearReason::options())
                     ->required(),
                 TextInput::make('reference')
                     ->label('Reference')
@@ -100,26 +94,11 @@ class MemberDepositsRelationManager extends RelationManager
                             ])
                             ->all();
 
-                        foreach (
-                            ArrearPayment::where('member_id', $member->id)
-                                ->where('reference', $record->reference)
-                                ->with('arrear')
-                                ->get() as $p
-                        ) {
-                            $splits[] = [
-                                'label' => $p->arrear?->title ?? 'Arrear',
-                                'amount' => (float) $p->amount,
-                            ];
-                        }
-
                         return view('filament.deposit-receipt', [
                             'member' => $member,
                             'deposit' => $record,
                             'splits' => $splits,
-                            'lastArrearDate' => collect([
-                                CondolenceLevy::where('member_id', $member->id)->max('created_at'),
-                                Arrear::where('member_id', $member->id)->max('created_at'),
-                            ])->filter()->max(),
+                            'lastArrearDate' => CondolenceLevy::where('member_id', $member->id)->max('created_at'),
                             'previousDepositDate' => Deposit::where('member_id', $member->id)
                                 ->where('id', '<', $record->id)
                                 ->orderBy('paid_at', 'desc')

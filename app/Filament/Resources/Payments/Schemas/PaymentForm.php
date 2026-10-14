@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Payments\Schemas;
 
-use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Models\Condolence;
 use App\Models\CondolenceLevy;
@@ -68,12 +67,6 @@ class PaymentForm
                             ->options(PaymentMethod::options())
                             ->required()
                             ->default(PaymentMethod::Cash->value),
-                        Select::make('reason')
-                            ->label('Reason')
-                            ->options(ArrearReason::options())
-                            ->required()
-                            ->default(ArrearReason::Condolence->value)
-                            ->helperText('Condolence payments settle a levy above; other reasons are tracked here for the record.'),
                         TextInput::make('reference')
                             ->label('Receipt / reference no.')
                             ->maxLength(255),

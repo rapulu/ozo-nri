@@ -2,7 +2,6 @@
 
 namespace App\Filament\Member\Widgets;
 
-use App\Models\Arrear;
 use App\Models\CondolenceLevy;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -19,14 +18,13 @@ class MemberStats extends StatsOverviewWidget
         }
 
         $totals = $member->accountTotals();
-        $unpaidCount = CondolenceLevy::where('member_id', $member->id)->whereIn('status', ['unpaid', 'partial'])->count()
-            + Arrear::where('member_id', $member->id)->whereIn('status', ['unpaid', 'partial'])->count();
+        $unpaidCount = CondolenceLevy::where('member_id', $member->id)->whereIn('status', ['unpaid', 'partial'])->count();
 
         $stats = [
             Stat::make('My total paid', '₦'.number_format($totals['paid'], 2))
                 ->icon('heroicon-o-banknotes'),
             Stat::make('My outstanding', '₦'.number_format($totals['outstanding'], 2))
-                ->description("{$unpaidCount} unpaid item(s)")
+                ->description("{$unpaidCount} unpaid condolence(s)")
                 ->icon('heroicon-o-exclamation-triangle'),
             Stat::make('Total expected', '₦'.number_format($totals['expected'], 2))
                 ->icon('heroicon-o-clipboard-document-list'),

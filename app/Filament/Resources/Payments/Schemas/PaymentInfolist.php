@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Payments\Schemas;
 
-use App\Enums\ArrearReason;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -27,9 +26,6 @@ class PaymentInfolist
                             ->date(),
                         TextEntry::make('payment_method')
                             ->badge(),
-                        TextEntry::make('reason')
-                            ->badge()
-                            ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
                         TextEntry::make('reference')
                             ->label('Receipt / reference'),
                         TextEntry::make('recorder.name')

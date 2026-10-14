@@ -9,8 +9,6 @@ use App\Filament\Resources\Members\Pages\ListMembers;
 use App\Filament\Resources\Members\Pages\ViewMember;
 use App\Filament\Resources\Members\RelationManagers\MemberDepositsRelationManager;
 use App\Http\Controllers\ReportController;
-use App\Models\Arrear;
-use App\Models\ArrearPayment;
 use App\Models\Condolence;
 use App\Models\CondolenceLevy;
 use App\Models\Deposit;
@@ -275,72 +273,15 @@ class AssociationCoreTest extends TestCase
         Condolence::factory()->create(['deceased_member_id' => $deceased->id]);
     }
 
-    public function test_condolence_arrear_requires_a_condolence_link(): void
+    public function test_member_account_totals_combine_levies_and_opening(): void
     {
-        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
-
-        $this->expectException(ValidationException::class);
-
-        Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'condolence',
-            'title' => 'Manual condolence top-up',
-            'amount_expected' => 1000,
+        $member = Member::factory()->create([
+            'status' => MemberStatus::Active->value,
+            'opening_arrears' => 2000,
         ]);
-    }
-
-    public function test_arrear_part_payments_update_status(): void
-    {
-        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
-
-        $arrear = Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'annual_dues',
-            'title' => '2026 annual dues',
-            'amount_expected' => 10000,
-        ]);
-
-        $this->assertEquals(LevyStatus::Unpaid->value, $arrear->status);
-
-        ArrearPayment::create([
-            'arrear_id' => $arrear->id,
-            'member_id' => $member->id,
-            'amount' => 4000,
-            'paid_at' => now()->toDateString(),
-            'payment_method' => 'cash',
-            'reason' => 'annual_dues',
-        ]);
-
-        $arrear->refresh();
-        $this->assertEquals(LevyStatus::Partial->value, $arrear->status);
-        $this->assertEquals(4000, (float) $arrear->amount_paid);
-
-        ArrearPayment::create([
-            'arrear_id' => $arrear->id,
-            'member_id' => $member->id,
-            'amount' => 6000,
-            'paid_at' => now()->toDateString(),
-            'payment_method' => 'bank_transfer',
-            'reason' => 'annual_dues',
-        ]);
-
-        $arrear->refresh();
-        $this->assertEquals(LevyStatus::Paid->value, $arrear->status);
-    }
-
-    public function test_member_account_totals_combine_levies_and_arrears(): void
-    {
-        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
         $deceased = Member::factory()->deceased()->create();
         $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 5000]);
         $condolence->generateLevies();
-
-        Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'fine',
-            'title' => 'Late-coming fine',
-            'amount_expected' => 2000,
-        ]);
 
         $totals = $member->refresh()->accountTotals();
 
@@ -403,7 +344,6 @@ class AssociationCoreTest extends TestCase
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'specific',
                 'condolence_levy_id' => $levy->id,
                 'amount' => 2000,
@@ -433,37 +373,35 @@ class AssociationCoreTest extends TestCase
             ->assertHasNoErrors();
     }
 
-    public function test_log_payment_action_records_arrear_payment_from_profile(): void
+    public function test_log_payment_action_records_specific_levy_from_profile(): void
     {
         $secretary = User::factory()->create();
         $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $deceased = Member::factory()->deceased()->create();
+        $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 10000]);
+        $condolence->generateLevies();
 
-        $arrear = Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'annual_dues',
-            'title' => '2026 annual dues',
-            'amount_expected' => 10000,
-        ]);
+        $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
 
         $this->actingAs($secretary, 'web');
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'annual_dues',
-                'arrear_id' => $arrear->id,
+                'allocation' => 'specific',
+                'condolence_levy_id' => $levy->id,
                 'amount' => 10000,
                 'paid_at' => now()->toDateString(),
                 'payment_method' => 'bank_transfer',
             ])
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('arrear_payments', [
-            'arrear_id' => $arrear->id,
+        $this->assertDatabaseHas('payments', [
+            'condolence_levy_id' => $levy->id,
             'member_id' => $member->id,
             'amount' => 10000,
-            'reason' => 'annual_dues',
+            'reason' => 'condolence',
         ]);
-        $this->assertEquals('paid', $arrear->refresh()->status);
+        $this->assertEquals('paid', $levy->refresh()->status);
     }
 
     public function test_log_payment_auto_spreads_deposit_oldest_first(): void
@@ -489,7 +427,6 @@ class AssociationCoreTest extends TestCase
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'auto',
                 'amount' => 7000,
                 'paid_at' => now()->toDateString(),
@@ -532,28 +469,26 @@ class AssociationCoreTest extends TestCase
     {
         $secretary = User::factory()->create();
         $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $deceased = Member::factory()->deceased()->create();
+        $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 20000]);
+        $condolence->generateLevies();
 
-        $arrear = Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'annual_dues',
-            'title' => '2026 annual dues',
-            'amount_expected' => 20000,
-        ]);
+        $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
 
         $this->actingAs($secretary, 'web');
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'annual_dues',
-                'arrear_id' => $arrear->id,
+                'allocation' => 'specific',
+                'condolence_levy_id' => $levy->id,
                 'amount' => '10,000',
                 'paid_at' => now()->toDateString(),
                 'payment_method' => 'cash',
             ])
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('arrear_payments', [
-            'arrear_id' => $arrear->id,
+        $this->assertDatabaseHas('payments', [
+            'condolence_levy_id' => $levy->id,
             'amount' => 10000,
         ]);
         $this->assertDatabaseHas('deposits', [
@@ -574,7 +509,6 @@ class AssociationCoreTest extends TestCase
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'auto',
                 'amount' => 8000,
                 'paid_at' => now()->toDateString(),
@@ -611,7 +545,7 @@ class AssociationCoreTest extends TestCase
         ]);
     }
 
-    public function test_log_payment_auto_spreads_across_levies_arrears_and_opening(): void
+    public function test_log_payment_auto_spreads_across_levies_and_opening(): void
     {
         $secretary = User::factory()->create();
         $member = Member::factory()->create([
@@ -623,21 +557,13 @@ class AssociationCoreTest extends TestCase
         $condolence = Condolence::factory()->create(['deceased_member_id' => $deceased->id, 'amount_per_member' => 5000]);
         $condolence->generateLevies();
 
-        $arrear = Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'annual_dues',
-            'title' => '2026 annual dues',
-            'amount_expected' => 3000,
-        ]);
-
         $this->actingAs($secretary, 'web');
 
-        // Owes 5000 levy + 3000 dues + 2000 opening = 10000; deposit 9000.
+        // Owes 5000 levy + 2000 opening = 7000; deposit 6000.
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'auto',
-                'amount' => 9000,
+                'amount' => 6000,
                 'paid_at' => now()->toDateString(),
                 'payment_method' => 'cash',
             ])
@@ -645,16 +571,15 @@ class AssociationCoreTest extends TestCase
 
         $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
         $this->assertEquals('paid', $levy->refresh()->status);
-        $this->assertEquals('paid', $arrear->refresh()->status);
         $this->assertEquals(1000, (float) $member->refresh()->opening_arrears);
 
         $deposit = Deposit::where('member_id', $member->id)->firstOrFail();
-        $this->assertEquals(9000, (float) $deposit->amount);
+        $this->assertEquals(6000, (float) $deposit->amount);
         $this->assertEquals(1000, (float) $deposit->opening_applied);
         $this->assertEquals(1000, $member->accountTotals()['outstanding']);
     }
 
-    public function test_log_payment_overpay_on_single_item_becomes_credit(): void
+    public function test_log_payment_overpay_becomes_credit(): void
     {
         $secretary = User::factory()->create();
         $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
@@ -664,18 +589,10 @@ class AssociationCoreTest extends TestCase
         $condolence->generateLevies();
         $levy = CondolenceLevy::where('condolence_id', $condolence->id)->where('member_id', $member->id)->firstOrFail();
 
-        $arrear = Arrear::create([
-            'member_id' => $member->id,
-            'reason' => 'fine',
-            'title' => 'Fine',
-            'amount_expected' => 2000,
-        ]);
-
         $this->actingAs($secretary, 'web');
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'specific',
                 'condolence_levy_id' => $levy->id,
                 'amount' => 6000,
@@ -686,20 +603,7 @@ class AssociationCoreTest extends TestCase
 
         $this->assertEquals('paid', $levy->refresh()->status);
         $this->assertEquals(1000, (float) $member->refresh()->credit_balance);
-
-        Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
-            ->callTableAction('logPayment', null, [
-                'reason' => 'fine',
-                'arrear_id' => $arrear->id,
-                'amount' => 2500,
-                'paid_at' => now()->toDateString(),
-                'payment_method' => 'cash',
-            ])
-            ->assertHasNoErrors();
-
-        $this->assertEquals('paid', $arrear->refresh()->status);
-        // ₦1,000 credit from before + ₦500 excess now.
-        $this->assertEquals(1500, (float) $member->refresh()->credit_balance);
+        $this->assertEquals(1000, (float) Deposit::where('member_id', $member->id)->firstOrFail()->credit_added);
     }
 
     public function test_member_list_defaults_to_active_with_status_tabs(): void
@@ -777,7 +681,6 @@ class AssociationCoreTest extends TestCase
 
         Livewire::test(MemberDepositsRelationManager::class, ['ownerRecord' => $member, 'pageClass' => ViewMember::class])
             ->callTableAction('logPayment', null, [
-                'reason' => 'condolence',
                 'allocation' => 'auto',
                 'amount' => 7000,
                 'paid_at' => now()->toDateString(),

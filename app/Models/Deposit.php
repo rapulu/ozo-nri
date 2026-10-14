@@ -102,19 +102,17 @@ class Deposit extends Model
             $created++;
         };
 
-        foreach (['payments' => Payment::class, 'arrear_payments' => ArrearPayment::class] as $table => $model) {
-            $model::whereNotNull('reference')->orderBy('id')->chunk(200, function ($rows) use ($groupKey, $makeDeposit): void {
-                foreach ($rows->groupBy($groupKey) as $group) {
-                    $makeDeposit($group);
-                }
-            });
+        Payment::whereNotNull('reference')->orderBy('id')->chunk(200, function ($rows) use ($groupKey, $makeDeposit): void {
+            foreach ($rows->groupBy($groupKey) as $group) {
+                $makeDeposit($group);
+            }
+        });
 
-            $model::whereNull('reference')->orderBy('id')->chunk(200, function ($rows) use ($makeDeposit): void {
-                foreach ($rows as $payment) {
-                    $makeDeposit(collect([$payment]));
-                }
-            });
-        }
+        Payment::whereNull('reference')->orderBy('id')->chunk(200, function ($rows) use ($makeDeposit): void {
+            foreach ($rows as $payment) {
+                $makeDeposit(collect([$payment]));
+            }
+        });
 
         return $created;
     }

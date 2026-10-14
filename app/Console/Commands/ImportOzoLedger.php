@@ -2,12 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\ArrearReason;
 use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
 use App\Enums\PaymentMethod;
-use App\Models\Arrear;
-use App\Models\ArrearPayment;
 use App\Models\Condolence;
 use App\Models\CondolenceLevy;
 use App\Models\Deposit;
@@ -297,10 +294,8 @@ class ImportOzoLedger extends Command
     private function wipeMemberData(): void
     {
         Payment::query()->delete();
-        ArrearPayment::query()->delete();
         Deposit::query()->delete();
         CondolenceLevy::query()->delete();
-        Arrear::query()->delete();
         Condolence::query()->delete();
         Member::query()->delete();
     }
@@ -513,7 +508,7 @@ class ImportOzoLedger extends Command
                     'paid_at' => $bucket['paid_at'],
                     'payment_method' => PaymentMethod::Other->value,
                     'reference' => $reference,
-                    'reason' => ArrearReason::Condolence->value,
+                    'reason' => 'condolence',
                     'opening_applied' => $openingShare,
                     'credit_added' => $creditShare,
                     'outstanding_before' => $before,
@@ -535,7 +530,7 @@ class ImportOzoLedger extends Command
                         'paid_at' => $bucket['paid_at'],
                         'payment_method' => PaymentMethod::Other->value,
                         'reference' => $reference,
-                        'reason' => ArrearReason::Condolence->value,
+                        'reason' => 'condolence',
                         'notes' => "Imported split {$splitIndex} of {$splitCount} — LEDGER {$bucket['code']}.",
                     ]);
                     $paymentCount++;

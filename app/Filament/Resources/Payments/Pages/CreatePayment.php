@@ -13,6 +13,7 @@ class CreatePayment extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['recorded_by'] = auth()->id();
+        $data['reason'] = 'condolence';
 
         $levy = CondolenceLevy::find($data['condolence_levy_id']);
 

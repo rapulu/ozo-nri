@@ -3,8 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Enums\LevyStatus;
-use App\Models\Arrear;
-use App\Models\ArrearPayment;
 use App\Models\CondolenceLevy;
 use App\Models\Deposit;
 use App\Models\Member;
@@ -23,14 +21,12 @@ class LedgerAudit extends Command
         $problems = 0;
 
         $problems += $this->auditObligations('levies', CondolenceLevy::query());
-        $problems += $this->auditObligations('arrears', Arrear::query());
         $problems += $this->auditDeposits();
 
         // Member credit held must equal credit added minus credit consumed.
         $creditHeld = (float) Member::sum('credit_balance');
         $creditAdded = (float) Deposit::sum('credit_added');
-        $creditConsumed = (float) Payment::where('payment_method', 'credit')->sum('amount')
-            + (float) ArrearPayment::where('payment_method', 'credit')->sum('amount');
+        $creditConsumed = (float) Payment::where('payment_method', 'credit')->sum('amount');
 
         if (abs($creditHeld - ($creditAdded - $creditConsumed)) > 0.01) {
             $this->error("Credit held {$creditHeld} != added {$creditAdded} minus consumed {$creditConsumed}.");
@@ -38,7 +34,7 @@ class LedgerAudit extends Command
         }
 
         if ($problems === 0) {
-            $this->info('Ledger reconciles: levies, arrears, deposits and credit all match.');
+            $this->info('Ledger reconciles: levies, deposits and credit all match.');
         } else {
             $this->error("Found {$problems} problem(s).");
         }
@@ -60,16 +56,11 @@ class LedgerAudit extends Command
         foreach (Deposit::orderBy('id')->cursor() as $deposit) {
             if ($deposit->reference) {
                 $splits = (float) Payment::where('member_id', $deposit->member_id)
-                    ->where('reference', $deposit->reference)->sum('amount')
-                    + (float) ArrearPayment::where('member_id', $deposit->member_id)
-                        ->where('reference', $deposit->reference)->sum('amount');
+                    ->where('reference', $deposit->reference)->sum('amount');
             } else {
                 $splits = (float) Payment::where('member_id', $deposit->member_id)
                     ->where('amount', $deposit->amount)
-                    ->whereDate('paid_at', $deposit->paid_at)->sum('amount')
-                    + (float) ArrearPayment::where('member_id', $deposit->member_id)
-                        ->where('amount', $deposit->amount)
-                        ->whereDate('paid_at', $deposit->paid_at)->sum('amount');
+                    ->whereDate('paid_at', $deposit->paid_at)->sum('amount');
             }
 
             $accounted = $splits + (float) $deposit->opening_applied + (float) $deposit->credit_added;

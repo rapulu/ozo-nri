@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Condolences\RelationManagers;
 
-use App\Enums\ArrearReason;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -78,7 +77,7 @@ class CondolenceDepositsRelationManager extends RelationManager
                     ->toggleable(),
                 TextColumn::make('reason')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—')
+                    ->formatStateUsing(fn (?string $state): string => $state ? ucfirst(str_replace('_', ' ', $state)) : '—')
                     ->toggleable(),
                 TextColumn::make('reference')
                     ->label('Reference')

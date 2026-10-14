@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
-use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Models\Condolence;
 use App\Models\Payment;
@@ -33,9 +32,6 @@ class PaymentsTable
                     ->label('Date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('reason')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
             ])
             ->filters([
                 SelectFilter::make('condolence_id')
@@ -44,8 +40,6 @@ class PaymentsTable
                     ->searchable(),
                 SelectFilter::make('payment_method')
                     ->options(PaymentMethod::options()),
-                SelectFilter::make('reason')
-                    ->options(ArrearReason::options()),
             ])
             ->recordActions([
                 Action::make('viewReceipt')

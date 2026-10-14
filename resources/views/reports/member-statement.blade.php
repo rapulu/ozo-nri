@@ -56,7 +56,7 @@ h3 { margin: 14px 0 4px 0; }
 <td>{{ $deposit->paid_at?->format('d/m/Y') ?? '—' }}</td>
 <td class="right">{{ number_format((float) $deposit->amount, 2) }}</td>
 <td>{{ \App\Enums\PaymentMethod::options()[$deposit->payment_method] ?? $deposit->payment_method ?? '—' }}</td>
-<td>{{ $deposit->reason ? (\App\Enums\ArrearReason::options()[$deposit->reason] ?? $deposit->reason) : '—' }}</td>
+<td>{{ $deposit->reason ? ucfirst(str_replace('_', ' ', $deposit->reason)) : '—' }}</td>
 <td>{{ $deposit->reference ?? '—' }}</td>
 <td class="right">{{ $deposit->outstanding_before === null ? '—' : number_format((float) $deposit->outstanding_before, 2) }}</td>
 <td class="right">{{ $deposit->outstanding_after === null ? '—' : number_format((float) $deposit->outstanding_after, 2) }}</td>

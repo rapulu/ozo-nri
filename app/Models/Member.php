@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\ArrearReason;
 use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
 use App\Enums\PaymentMethod;
@@ -98,18 +97,6 @@ class Member extends Authenticatable implements FilamentUser
         return $this->hasMany(Payment::class);
     }
 
-    /** @return HasMany<Arrear, $this> */
-    public function arrears(): HasMany
-    {
-        return $this->hasMany(Arrear::class);
-    }
-
-    /** @return HasMany<ArrearPayment, $this> */
-    public function arrearPayments(): HasMany
-    {
-        return $this->hasMany(ArrearPayment::class);
-    }
-
     /** @return HasMany<Deposit, $this> */
     public function deposits(): HasMany
     {
@@ -123,17 +110,15 @@ class Member extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Combined condolence levies + general arrears + opening arrears.
+     * Combined condolence levies + opening arrears.
      *
      * @return array{expected: float, paid: float, outstanding: float}
      */
     public function accountTotals(): array
     {
         $expected = (float) $this->levies()->sum('amount_expected')
-            + (float) $this->arrears()->sum('amount_expected')
             + (float) $this->opening_arrears;
-        $paid = (float) $this->levies()->sum('amount_paid')
-            + (float) $this->arrears()->sum('amount_paid');
+        $paid = (float) $this->levies()->sum('amount_paid');
 
         return ['expected' => $expected, 'paid' => $paid, 'outstanding' => $expected - $paid];
     }
@@ -149,8 +134,7 @@ class Member extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Spend the member's credit balance on outstanding obligations,
-     * oldest first: condolence levies, then general arrears.
+     * Spend the member's credit balance on outstanding levies, oldest first.
      *
      * @return float amount of credit consumed
      */
@@ -195,41 +179,7 @@ class Member extends Authenticatable implements FilamentUser
                     'paid_at' => now()->toDateString(),
                     'payment_method' => PaymentMethod::Credit->value,
                     'reference' => $reference,
-                    'reason' => ArrearReason::Condolence->value,
-                    'notes' => 'Auto-applied from credit balance.',
-                ]);
-
-                $credit -= $take;
-                $applied += $take;
-            }
-
-            $arrears = Arrear::where('member_id', $this->id)
-                ->whereIn('status', [LevyStatus::Unpaid->value, LevyStatus::Partial->value])
-                ->orderBy('due_date')
-                ->orderBy('id')
-                ->get();
-
-            foreach ($arrears as $arrear) {
-                if ($credit <= 0) {
-                    break;
-                }
-
-                $due = max(0, (float) $arrear->amount_expected - (float) $arrear->amount_paid);
-
-                if ($due <= 0) {
-                    continue;
-                }
-
-                $take = min($credit, $due);
-
-                ArrearPayment::create([
-                    'arrear_id' => $arrear->id,
-                    'member_id' => $this->id,
-                    'amount' => $take,
-                    'paid_at' => now()->toDateString(),
-                    'payment_method' => PaymentMethod::Credit->value,
-                    'reference' => $reference,
-                    'reason' => $arrear->reason,
+                    'reason' => 'condolence',
                     'notes' => 'Auto-applied from credit balance.',
                 ]);
 

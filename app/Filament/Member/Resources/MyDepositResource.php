@@ -2,7 +2,6 @@
 
 namespace App\Filament\Member\Resources;
 
-use App\Enums\ArrearReason;
 use App\Models\Deposit;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -51,7 +50,7 @@ class MyDepositResource extends Resource
                     ->badge(),
                 TextColumn::make('reason')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
+                    ->formatStateUsing(fn (?string $state): string => $state ? ucfirst(str_replace('_', ' ', $state)) : '—'),
                 TextColumn::make('reference')
                     ->label('Reference'),
                 TextColumn::make('outstanding_before')
