@@ -23,7 +23,7 @@ class CondolenceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedHeart;
 
-    protected static ?string $navigationLabel = 'Condolences';
+    protected static ?string $navigationLabel = 'Condolence levy';
 
     protected static ?int $navigationSort = 2;
 
