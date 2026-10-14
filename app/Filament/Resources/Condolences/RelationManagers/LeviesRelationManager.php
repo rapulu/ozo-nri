@@ -3,14 +3,9 @@
 namespace App\Filament\Resources\Condolences\RelationManagers;
 
 use App\Enums\LevyStatus;
-use App\Enums\PaymentMethod;
 use App\Models\CondolenceLevy;
-use App\Models\Payment;
-use Filament\Actions\Action;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -85,45 +80,6 @@ class LeviesRelationManager extends RelationManager
                     ->options(LevyStatus::options()),
             ])
             ->recordActions([
-                Action::make('recordPayment')
-                    ->label('Record payment')
-                    ->icon('heroicon-o-banknotes')
-                    ->schema([
-                        TextInput::make('amount')
-                            ->label('Amount received (₦)')
-                            ->required()
-                            ->numeric()
-                            ->stripCharacters([',', ' '])
-                            ->minValue(1),
-                        DatePicker::make('paid_at')
-                            ->label('Date received')
-                            ->required()
-                            ->default(now())
-                            ->maxDate(now()),
-                        Select::make('payment_method')
-                            ->options(PaymentMethod::options())
-                            ->required()
-                            ->default(PaymentMethod::Cash->value),
-                        TextInput::make('reference')
-                            ->label('Receipt / reference no.')
-                            ->maxLength(255),
-                        Textarea::make('notes')
-                            ->rows(2)
-                            ->columnSpanFull(),
-                    ])
-                    ->action(function (CondolenceLevy $record, array $data): void {
-                        Payment::create([
-                            'condolence_levy_id' => $record->id,
-                            'condolence_id' => $record->condolence_id,
-                            'member_id' => $record->member_id,
-                            'amount' => $data['amount'],
-                            'paid_at' => $data['paid_at'],
-                            'payment_method' => $data['payment_method'],
-                            'reference' => $data['reference'] ?? null,
-                            'recorded_by' => auth()->id(),
-                            'notes' => $data['notes'] ?? null,
-                        ]);
-                    }),
                 EditAction::make()
                     ->label('Edit arrears')
                     ->after(fn (CondolenceLevy $record): mixed => $record->recalculate()),
