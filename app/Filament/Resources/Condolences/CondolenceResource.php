@@ -7,7 +7,6 @@ use App\Filament\Resources\Condolences\Pages\EditCondolence;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
 use App\Filament\Resources\Condolences\Pages\ViewCondolence;
 use App\Filament\Resources\Condolences\RelationManagers\CondolenceDepositsRelationManager;
-use App\Filament\Resources\Condolences\RelationManagers\LeviesRelationManager;
 use App\Filament\Resources\Condolences\Schemas\CondolenceForm;
 use App\Filament\Resources\Condolences\Schemas\CondolenceInfolist;
 use App\Filament\Resources\Condolences\Tables\CondolencesTable;
@@ -48,7 +47,6 @@ class CondolenceResource extends Resource
     public static function getRelations(): array
     {
         return [
-            LeviesRelationManager::class,
             CondolenceDepositsRelationManager::class,
         ];
     }
