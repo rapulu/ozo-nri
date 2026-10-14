@@ -23,7 +23,7 @@ use ZipArchive;
 
 class ImportOzoLedger extends Command
 {
-    protected $signature = 'import:ozo-ledger {--file=ozo_condolence_levy.xlsx} {--force : skip the wipe confirmation} {--member= : import only the member whose name contains this text}';
+    protected $signature = 'import:ozo-ledger {--file=ozo_condolence_levy.xlsx} {--force : skip the wipe confirmation} {--member= : import only the member whose name contains this text} {--members-only : import member names and statuses, no condolences, levies, payments or deposits}';
 
     protected $description = 'Import members, condolences, levies and payments from the ozo_condolence_levy spreadsheet ledger.';
 
@@ -104,12 +104,22 @@ class ImportOzoLedger extends Command
         DB::transaction(function () use ($members): void {
             $this->wipeMemberData();
 
-            $condolences = $this->importCondolences();
+            $condolences = $this->option('members-only') ? [] : $this->importCondolences();
             $this->importMembers($members);
-            $this->importLeviesAndPayments($members, $condolences);
+
+            if ($this->option('members-only')) {
+                foreach (self::CONDOLENCES as $def) {
+                    $this->importDeceased($def);
+                }
+                $this->info('Deceased members imported: '.count(self::CONDOLENCES));
+            } else {
+                $this->importLeviesAndPayments($members, $condolences);
+            }
         });
 
-        $this->validateImport($members);
+        if (! $this->option('members-only')) {
+            $this->validateImport($members);
+        }
 
         return self::SUCCESS;
     }
@@ -302,15 +312,7 @@ class ImportOzoLedger extends Command
     {
         $map = [];
         foreach (self::CONDOLENCES as $def) {
-            $deceased = Member::create([
-                'title' => $def['title'],
-                'first_name' => $def['first_name'],
-                'middle_name' => $def['middle_name'],
-                'last_name' => $def['last_name'],
-                'email' => $def['email'],
-                'password' => Hash::make(Str::random(32)),
-                'status' => MemberStatus::Deceased->value,
-            ]);
+            $deceased = $this->importDeceased($def);
 
             $map[$def['key']] = Condolence::create([
                 'deceased_member_id' => $deceased->id,
@@ -325,6 +327,22 @@ class ImportOzoLedger extends Command
         }
 
         return $map;
+    }
+
+    /**
+     * @param  array{title: string, first_name: string, middle_name: ?string, last_name: string, email: string}  $def
+     */
+    private function importDeceased(array $def): Member
+    {
+        return Member::create([
+            'title' => $def['title'],
+            'first_name' => $def['first_name'],
+            'middle_name' => $def['middle_name'],
+            'last_name' => $def['last_name'],
+            'email' => $def['email'],
+            'password' => Hash::make(Str::random(32)),
+            'status' => MemberStatus::Deceased->value,
+        ]);
     }
 
     /**
@@ -349,7 +367,7 @@ class ImportOzoLedger extends Command
                 'email' => $email,
                 'password' => $password,
                 'status' => MemberStatus::Active->value,
-                'opening_arrears' => self::amountCell($row[self::OPENING_COL]),
+                'opening_arrears' => $this->option('members-only') ? 0 : self::amountCell($row[self::OPENING_COL]),
                 'notes' => str_contains((string) $row[self::NAME_COL], '**') ? 'Marked ** in ledger.' : null,
                 'created_at' => $now,
                 'updated_at' => $now,

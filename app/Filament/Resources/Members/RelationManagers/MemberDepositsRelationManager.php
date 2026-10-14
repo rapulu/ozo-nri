@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Members\RelationManagers;
 
+use App\Enums\ArrearReason;
+use App\Enums\PaymentMethod;
 use App\Filament\Resources\Members\Actions\LogMemberPayment;
 use App\Models\Arrear;
 use App\Models\ArrearPayment;
@@ -9,6 +11,11 @@ use App\Models\CondolenceLevy;
 use App\Models\Deposit;
 use App\Models\Payment;
 use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
@@ -24,7 +31,31 @@ class MemberDepositsRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        return $schema->components([]);
+        return $schema
+            ->components([
+                TextInput::make('amount')
+                    ->label('Amount deposited (₦)')
+                    ->required()
+                    ->numeric()
+                    ->stripCharacters([',', ' '])
+                    ->minValue(1),
+                DatePicker::make('paid_at')
+                    ->label('Date received')
+                    ->required()
+                    ->maxDate(now()),
+                Select::make('payment_method')
+                    ->options(PaymentMethod::options())
+                    ->required(),
+                Select::make('reason')
+                    ->options(ArrearReason::options())
+                    ->required(),
+                TextInput::make('reference')
+                    ->label('Reference')
+                    ->maxLength(255),
+                Textarea::make('notes')
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ]);
     }
 
     public function table(Table $table): Table
@@ -48,6 +79,7 @@ class MemberDepositsRelationManager extends RelationManager
                 LogMemberPayment::make(),
             ])
             ->recordActions([
+                EditAction::make(),
                 Action::make('viewReceipt')
                     ->label('View')
                     ->icon('heroicon-o-eye')

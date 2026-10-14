@@ -5,10 +5,10 @@ namespace App\Filament\Resources\Arrears\RelationManagers;
 use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Models\ArrearPayment;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -17,8 +17,10 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 
 class ArrearPaymentsRelationManager extends RelationManager
 {
@@ -117,7 +119,25 @@ class ArrearPaymentsRelationManager extends RelationManager
                     }),
             ])
             ->recordActions([
-                ViewAction::make(),
+                Action::make('viewReceipt')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading(false)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalWidth(Width::ThreeExtraLarge)
+                    ->modalContent(function (ArrearPayment $record): View {
+                        $arrear = $record->arrear;
+
+                        return view('filament.payment-receipt', [
+                            'member' => $record->member,
+                            'payment' => $record,
+                            'appliedTo' => $arrear?->title ?? 'Arrear',
+                            'balanceAfter' => $arrear
+                                ? max(0, (float) $arrear->amount_expected - (float) $arrear->amount_paid)
+                                : 0,
+                        ]);
+                    }),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

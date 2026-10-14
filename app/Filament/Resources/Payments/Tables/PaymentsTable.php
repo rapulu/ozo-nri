@@ -5,13 +5,16 @@ namespace App\Filament\Resources\Payments\Tables;
 use App\Enums\ArrearReason;
 use App\Enums\PaymentMethod;
 use App\Models\Condolence;
+use App\Models\Payment;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 
 class PaymentsTable
 {
@@ -19,10 +22,6 @@ class PaymentsTable
     {
         return $table
             ->columns([
-                TextColumn::make('condolence.title')
-                    ->label('Condolence')
-                    ->limit(30)
-                    ->searchable(),
                 TextColumn::make('member.full_name')
                     ->label('Member')
                     ->getStateUsing(fn ($record): string => $record->member?->full_name ?? '—')
@@ -31,23 +30,12 @@ class PaymentsTable
                     ->money('NGN')
                     ->sortable(),
                 TextColumn::make('paid_at')
-                    ->label('Date received')
+                    ->label('Date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('payment_method')
-                    ->badge()
-                    ->searchable(),
                 TextColumn::make('reason')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—')
-                    ->toggleable(),
-                TextColumn::make('reference')
-                    ->label('Receipt no.')
-                    ->searchable()
-                    ->toggleable(),
-                TextColumn::make('recorder.name')
-                    ->label('Recorded by')
-                    ->toggleable(),
+                    ->formatStateUsing(fn (?string $state): string => $state ? (ArrearReason::options()[$state] ?? $state) : '—'),
             ])
             ->filters([
                 SelectFilter::make('condolence_id')
@@ -60,7 +48,25 @@ class PaymentsTable
                     ->options(ArrearReason::options()),
             ])
             ->recordActions([
-                ViewAction::make(),
+                Action::make('viewReceipt')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading(false)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalWidth(Width::ThreeExtraLarge)
+                    ->modalContent(function (Payment $record): View {
+                        $levy = $record->levy;
+
+                        return view('filament.payment-receipt', [
+                            'member' => $record->member,
+                            'payment' => $record,
+                            'appliedTo' => $levy?->condolence?->title ?? 'Condolence levy',
+                            'balanceAfter' => $levy
+                                ? max(0, (float) $levy->amount_expected - (float) $levy->amount_paid)
+                                : 0,
+                        ]);
+                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([
