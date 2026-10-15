@@ -24,7 +24,7 @@ class MyDepositResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $memberId = Auth::guard('member')->id();
+        $memberId = Auth::user()?->member_id;
 
         return parent::getEloquentQuery()->where('member_id', $memberId);
     }

@@ -11,7 +11,6 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Hash;
 
 class MemberForm
 {
@@ -39,22 +38,8 @@ class MemberForm
                             ->default(MemberStatus::Active->value),
                     ])
                     ->columns(2),
-                Section::make('Contact & Login')
+                Section::make('Contact')
                     ->schema([
-                        TextInput::make('email')
-                            ->label('Email address')
-                            ->email()
-                            ->unique(ignoreRecord: true)
-                            ->required()
-                            ->maxLength(255),
-                        TextInput::make('password')
-                            ->password()
-                            ->revealable()
-                            ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? Hash::make($state) : null)
-                            ->dehydrated(fn (?string $state): bool => filled($state))
-                            ->required(fn (string $operation): bool => $operation === 'create')
-                            ->maxLength(255)
-                            ->helperText('Leave blank to keep existing password when editing.'),
                         TextInput::make('phone')
                             ->tel()
                             ->maxLength(255),

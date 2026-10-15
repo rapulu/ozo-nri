@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
+use App\Filament\Member\Resources\MyDepositResource;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
 use App\Filament\Resources\Members\Pages\ListMembers;
 use App\Filament\Resources\Members\Pages\ViewMember;
@@ -15,6 +16,7 @@ use App\Models\Deposit;
 use App\Models\Member;
 use App\Models\Payment;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -704,5 +706,68 @@ class AssociationCoreTest extends TestCase
             (float) $older->deposits()->where('deposits.member_id', $member->id)->sum('deposit_allocations.amount')
         );
         $this->assertEquals(5000, (float) $olderLevy->deposits()->sum('deposit_allocations.amount'));
+    }
+
+    public function test_admin_and_member_panels_enforce_roles(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $memberUser = User::factory()->create(['role' => User::ROLE_MEMBER, 'member_id' => $member->id]);
+
+        $adminPanel = Filament::getPanel('admin');
+        $memberPanel = Filament::getPanel('member');
+
+        $this->assertTrue($admin->canAccessPanel($adminPanel));
+        $this->assertFalse($admin->canAccessPanel($memberPanel));
+        $this->assertFalse($memberUser->canAccessPanel($adminPanel));
+        $this->assertTrue($memberUser->canAccessPanel($memberPanel));
+
+        $member->update(['status' => MemberStatus::Suspended->value]);
+
+        $this->assertFalse($memberUser->refresh()->canAccessPanel($memberPanel));
+    }
+
+    public function test_create_login_from_member_profile(): void
+    {
+        $secretary = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+
+        $this->actingAs($secretary, 'web');
+
+        Livewire::test(ViewMember::class, ['record' => $member->getRouteKey()])
+            ->callAction('createLogin', [
+                'name' => $member->full_name,
+                'email' => 'newmember@example.com',
+                'password' => 'secret123',
+            ])
+            ->assertHasNoErrors();
+
+        $user = User::where('email', 'newmember@example.com')->firstOrFail();
+        $this->assertEquals(User::ROLE_MEMBER, $user->role);
+        $this->assertEquals($member->id, $user->member_id);
+        $this->assertTrue($member->refresh()->user()->isNot(null));
+    }
+
+    public function test_member_user_sees_only_own_deposits(): void
+    {
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $other = Member::factory()->create(['status' => MemberStatus::Active->value]);
+
+        Deposit::create([
+            'member_id' => $member->id, 'amount' => 1000, 'paid_at' => now()->toDateString(),
+            'payment_method' => 'cash', 'reason' => 'condolence',
+        ]);
+        Deposit::create([
+            'member_id' => $other->id, 'amount' => 2000, 'paid_at' => now()->toDateString(),
+            'payment_method' => 'cash', 'reason' => 'condolence',
+        ]);
+
+        $memberUser = User::factory()->create(['role' => User::ROLE_MEMBER, 'member_id' => $member->id]);
+        $this->actingAs($memberUser, 'web');
+
+        $query = MyDepositResource::getEloquentQuery();
+
+        $this->assertEquals([$member->id], $query->pluck('member_id')->unique()->all());
+        $this->assertEquals(1000, (float) $query->sum('amount'));
     }
 }

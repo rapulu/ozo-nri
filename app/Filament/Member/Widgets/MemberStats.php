@@ -11,7 +11,7 @@ class MemberStats extends StatsOverviewWidget
 {
     protected function getStats(): array
     {
-        $member = Auth::guard('member')->user();
+        $member = Auth::user()?->member;
 
         if (! $member) {
             return [];

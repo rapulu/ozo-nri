@@ -21,7 +21,10 @@ class MemberInfolist
                         TextEntry::make('full_name')
                             ->label('Full name')
                             ->getStateUsing(fn ($record): string => $record->full_name),
-                        TextEntry::make('email'),
+                        TextEntry::make('user.email')
+                            ->label('Login email')
+                            ->formatStateUsing(fn (?string $state): string => $state ?? 'No login yet — create one below')
+                            ->copyable(),
                         TextEntry::make('phone'),
                         TextEntry::make('address'),
                         TextEntry::make('status')

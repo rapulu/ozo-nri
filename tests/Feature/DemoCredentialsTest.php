@@ -44,7 +44,7 @@ class DemoCredentialsTest extends TestCase
 
         $html = view('filament.demo-credentials')->render();
 
-        $this->assertStringContainsString('Demo login', $html);
+        $this->assertStringContainsString('Secretary demo', $html);
         $this->assertStringContainsString('secretary@nzena-ozo.local', $html);
     }
 }
