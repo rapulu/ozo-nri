@@ -23,23 +23,33 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Secretary',
                 'password' => Hash::make('password'),
+                'role' => User::ROLE_ADMIN,
+                'member_id' => null,
             ]
         );
 
-        Member::firstOrCreate(
-            ['email' => 'member@nzena-ozo.local'],
+        $demoMember = Member::firstOrCreate(
+            ['first_name' => 'Demo', 'last_name' => 'Member'],
             [
                 'title' => 'Mazi',
-                'first_name' => 'Demo',
                 'middle_name' => null,
-                'last_name' => 'Member',
-                'password' => Hash::make('password'),
                 'phone' => '08000000000',
                 'address' => 'Demo address',
                 'date_joined' => now()->toDateString(),
                 'status' => MemberStatus::Active->value,
             ]
         );
+
+        $demoUser = User::firstOrCreate(
+            ['email' => 'member@nzena-ozo.local'],
+            [
+                'name' => 'Demo Member',
+                'password' => Hash::make('password'),
+                'role' => User::ROLE_MEMBER,
+                'member_id' => $demoMember->id,
+            ]
+        );
+        $demoUser->update(['role' => User::ROLE_MEMBER, 'member_id' => $demoMember->id]);
 
         $activeCount = Member::where('status', MemberStatus::Active->value)->count();
         if ($activeCount < 20) {
@@ -49,17 +59,14 @@ class DatabaseSeeder extends Seeder
         }
 
         foreach ([
-            ['email' => 'suspended.one@example.local', 'first_name' => 'Suspended', 'last_name' => 'One'],
-            ['email' => 'suspended.two@example.local', 'first_name' => 'Suspended', 'last_name' => 'Two'],
+            ['first_name' => 'Suspended', 'last_name' => 'One'],
+            ['first_name' => 'Suspended', 'last_name' => 'Two'],
         ] as $data) {
             Member::firstOrCreate(
-                ['email' => $data['email']],
+                ['first_name' => $data['first_name'], 'last_name' => $data['last_name']],
                 [
                     'title' => 'Mazi',
-                    'first_name' => $data['first_name'],
                     'middle_name' => null,
-                    'last_name' => $data['last_name'],
-                    'password' => Hash::make('password'),
                     'phone' => null,
                     'date_joined' => now()->toDateString(),
                     'status' => MemberStatus::Suspended->value,
@@ -68,22 +75,19 @@ class DatabaseSeeder extends Seeder
         }
 
         $deceasedData = [
-            ['title' => 'Nze', 'first_name' => 'Chukwuemeka', 'last_name' => 'Obi', 'email' => 'late.obi@example.local'],
-            ['title' => 'Ozo', 'first_name' => 'Nnamdi', 'last_name' => 'Eze', 'email' => 'late.eze@example.local'],
-            ['title' => 'Ichie', 'first_name' => 'Okafor', 'last_name' => 'Udo', 'email' => 'late.udo@example.local'],
-            ['title' => 'Mazi', 'first_name' => 'Emeka', 'last_name' => 'Nwosu', 'email' => 'late.nwosu@example.local'],
-            ['title' => 'Nze', 'first_name' => 'Obinna', 'last_name' => 'Kanu', 'email' => 'late.kanu@example.local'],
+            ['title' => 'Nze', 'first_name' => 'Chukwuemeka', 'last_name' => 'Obi'],
+            ['title' => 'Ozo', 'first_name' => 'Nnamdi', 'last_name' => 'Eze'],
+            ['title' => 'Ichie', 'first_name' => 'Okafor', 'last_name' => 'Udo'],
+            ['title' => 'Mazi', 'first_name' => 'Emeka', 'last_name' => 'Nwosu'],
+            ['title' => 'Nze', 'first_name' => 'Obinna', 'last_name' => 'Kanu'],
         ];
 
         foreach ($deceasedData as $data) {
             Member::firstOrCreate(
-                ['email' => $data['email']],
+                ['first_name' => 'Late', 'last_name' => $data['last_name']],
                 [
                     'title' => $data['title'],
-                    'first_name' => 'Late',
                     'middle_name' => $data['first_name'],
-                    'last_name' => $data['last_name'],
-                    'password' => Hash::make('password'),
                     'phone' => null,
                     'date_joined' => now()->subYears(5)->toDateString(),
                     'status' => MemberStatus::Deceased->value,

@@ -3,29 +3,24 @@
 namespace App\Models;
 
 use App\Enums\LevyStatus;
-use App\Enums\MemberStatus;
 use App\Enums\PaymentMethod;
 use Database\Factories\MemberFactory;
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 
-class Member extends Authenticatable implements FilamentUser
+class Member extends Model
 {
     /** @use HasFactory<MemberFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory;
 
     protected $fillable = [
         'title',
         'first_name',
         'middle_name',
         'last_name',
-        'email',
-        'password',
         'phone',
         'address',
         'date_joined',
@@ -33,11 +28,6 @@ class Member extends Authenticatable implements FilamentUser
         'status',
         'opening_arrears',
         'notes',
-    ];
-
-    protected $hidden = [
-        'password',
-        'remember_token',
     ];
 
     /**
@@ -50,20 +40,16 @@ class Member extends Authenticatable implements FilamentUser
     protected function casts(): array
     {
         return [
-            'password' => 'hashed',
             'date_joined' => 'date',
             'opening_arrears' => 'decimal:2',
             'credit_balance' => 'decimal:2',
         ];
     }
 
-    public function canAccessPanel(Panel $panel): bool
+    /** @return HasOne<User, $this> */
+    public function user(): HasOne
     {
-        if ($panel->getId() !== 'member') {
-            return false;
-        }
-
-        return $this->status === MemberStatus::Active->value;
+        return $this->hasOne(User::class);
     }
 
     public function getFullNameAttribute(): string

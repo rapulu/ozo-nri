@@ -2,14 +2,16 @@
     @php
         $panelId = filament()->getCurrentPanel()?->getId();
         $isMemberPanel = $panelId === 'member';
-        $demoEmail = $isMemberPanel ? 'member@nzena-ozo.local' : 'secretary@nzena-ozo.local';
-        $demoPassword = 'password';
-        $portalLabel = $isMemberPanel ? 'Member portal demo' : 'Secretary demo';
     @endphp
     <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-700">
-        <p class="font-semibold">Demo login ({{ $portalLabel }} — {{ app()->environment() }} only)</p>
-        <p class="mt-1">Email: <code class="font-mono">{{ $demoEmail }}</code></p>
-        <p>Password: <code class="font-mono">{{ $demoPassword }}</code></p>
+        @if($isMemberPanel)
+            <p class="font-semibold">Member portal ({{ app()->environment() }} only)</p>
+            <p class="mt-1">Members sign in with the login the secretary created on their profile. Demo: <code class="font-mono">member@nzena-ozo.local</code> / <code class="font-mono">password</code> (seeded).</p>
+        @else
+            <p class="font-semibold">Secretary demo ({{ app()->environment() }} only)</p>
+            <p class="mt-1">Email: <code class="font-mono">secretary@nzena-ozo.local</code></p>
+            <p>Password: <code class="font-mono">password</code></p>
+        @endif
         <p class="mt-1 text-xs text-gray-500">Hidden automatically in production.</p>
     </div>
 @endif

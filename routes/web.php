@@ -11,7 +11,7 @@ Route::get('/login', function () {
     return redirect()->to('/admin/login');
 })->name('login');
 
-Route::middleware(['auth:web,member'])->group(function (): void {
+Route::middleware(['auth:web'])->group(function (): void {
     Route::get('/reports/condolences/matrix', [ReportController::class, 'matrix'])
         ->name('reports.condolences-matrix');
     Route::get('/reports/condolences/matrix.csv', [ReportController::class, 'matrixCsv'])
