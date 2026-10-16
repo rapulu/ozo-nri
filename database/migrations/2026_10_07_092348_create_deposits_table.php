@@ -21,6 +21,10 @@ return new class extends Migration
             $table->string('reason', 30)->default('condolence');
             $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
+            $table->decimal('opening_applied', 12, 2)->default(0);
+            $table->decimal('credit_added', 12, 2)->default(0);
+            $table->decimal('outstanding_before', 12, 2)->nullable();
+            $table->decimal('outstanding_after', 12, 2)->nullable();
             $table->timestamps();
         });
     }

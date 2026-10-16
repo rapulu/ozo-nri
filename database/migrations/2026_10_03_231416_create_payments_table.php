@@ -20,6 +20,7 @@ return new class extends Migration
             $table->date('paid_at');
             $table->string('payment_method', 30)->default('cash');
             $table->string('reference')->nullable();
+            $table->string('reason', 30)->nullable();
             $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
             $table->timestamps();

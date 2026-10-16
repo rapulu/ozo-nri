@@ -17,6 +17,10 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('role', 20)->default('member');
+            // The foreign key to members is added in the members migration,
+            // because this file runs before the members table exists.
+            $table->unsignedBigInteger('member_id')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
