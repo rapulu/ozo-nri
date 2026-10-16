@@ -12,15 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('condolences', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('title');
-            $table->foreignId('deceased_member_id')->nullable()->constrained('members')->nullOnDelete();
+            $table->foreignUuid('deceased_member_id')->nullable()->constrained('members')->nullOnDelete();
             $table->decimal('amount_per_member', 12, 2)->default(0);
             $table->date('date_announced');
             $table->date('due_date')->nullable();
             $table->string('status', 20)->default('open');
             $table->text('description')->nullable();
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->unique('deceased_member_id');

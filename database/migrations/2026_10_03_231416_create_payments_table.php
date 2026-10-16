@@ -12,16 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payments', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('condolence_levy_id')->constrained('condolence_levies')->cascadeOnDelete();
-            $table->foreignId('condolence_id')->constrained('condolences')->cascadeOnDelete();
-            $table->foreignId('member_id')->constrained('members')->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('condolence_levy_id')->constrained('condolence_levies')->cascadeOnDelete();
+            $table->foreignUuid('condolence_id')->constrained('condolences')->cascadeOnDelete();
+            $table->foreignUuid('member_id')->constrained('members')->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
             $table->date('paid_at');
             $table->string('payment_method', 30)->default('cash');
             $table->string('reference')->nullable();
             $table->string('reason', 30)->nullable();
-            $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DepositAllocation extends Model
 {
+    use HasUuids;
+
     protected $fillable = [
         'deposit_id',
         'condolence_levy_id',

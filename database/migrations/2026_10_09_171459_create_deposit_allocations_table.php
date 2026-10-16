@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('deposit_allocations', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('deposit_id')->constrained('deposits')->cascadeOnDelete();
-            $table->foreignId('condolence_levy_id')->constrained('condolence_levies')->cascadeOnDelete();
-            $table->foreignId('condolence_id')->constrained('condolences')->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('deposit_id')->constrained('deposits')->cascadeOnDelete();
+            $table->foreignUuid('condolence_levy_id')->constrained('condolence_levies')->cascadeOnDelete();
+            $table->foreignUuid('condolence_id')->constrained('condolences')->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
             $table->timestamps();
 

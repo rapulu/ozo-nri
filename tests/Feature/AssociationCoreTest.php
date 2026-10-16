@@ -19,6 +19,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -770,6 +771,23 @@ class AssociationCoreTest extends TestCase
 
         $this->assertEquals([$member->id], $query->pluck('member_id')->unique()->all());
         $this->assertEquals(1000, (float) $query->sum('amount'));
+    }
+
+    public function test_models_use_uuid_ids(): void
+    {
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $condolence = Condolence::factory()->create([
+            'deceased_member_id' => Member::factory()->deceased()->create()->id,
+        ]);
+        $deposit = Deposit::create([
+            'member_id' => $member->id, 'amount' => 1000, 'paid_at' => now()->toDateString(),
+            'payment_method' => 'cash', 'reason' => 'condolence',
+        ]);
+
+        foreach ([$member, $condolence, $deposit, User::factory()->create()] as $model) {
+            $this->assertTrue((bool) Str::isUuid((string) $model->getKey()), get_class($model).' id is not a UUID');
+            $this->assertSame($model->getKey(), $model->fresh()?->getKey());
+        }
     }
 
     public function test_member_bank_details_save_from_create_form(): void

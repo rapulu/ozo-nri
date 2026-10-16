@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('condolence_levies', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('condolence_id')->constrained('condolences')->cascadeOnDelete();
-            $table->foreignId('member_id')->constrained('members')->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('condolence_id')->constrained('condolences')->cascadeOnDelete();
+            $table->foreignUuid('member_id')->constrained('members')->cascadeOnDelete();
             $table->decimal('amount_expected', 12, 2)->default(0);
             $table->decimal('amount_paid', 12, 2)->default(0);
             $table->string('status', 20)->default('unpaid');

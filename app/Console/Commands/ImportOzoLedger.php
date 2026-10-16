@@ -14,7 +14,6 @@ use Carbon\Carbon;
 use DOMDocument;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use ZipArchive;
 
@@ -27,16 +26,16 @@ class ImportOzoLedger extends Command
     /**
      * Condolences in the ledger, oldest first.
      *
-     * @var array<int, array{key: string, title: string, first_name: string, middle_name: ?string, last_name: string, email: string, amount: float, announced: string, due: ?string}>
+     * @var array<int, array{key: string, title: string, first_name: string, middle_name: ?string, last_name: string, amount: float, announced: string, due: ?string}>
      */
     public const CONDOLENCES = [
-        ['key' => 'okonkwo', 'title' => 'Chief', 'first_name' => 'Late', 'middle_name' => 'Okey', 'last_name' => 'Okonkwo', 'email' => 'late.okey.okonkwo@nzena-ozo.local', 'amount' => 3000, 'announced' => '2024-06-01', 'due' => '2024-07-31'],
-        ['key' => 'ifeacho', 'title' => 'Chief', 'first_name' => 'Late', 'middle_name' => null, 'last_name' => 'Ifeacho', 'email' => 'late.ifeacho@nzena-ozo.local', 'amount' => 3000, 'announced' => '2024-12-01', 'due' => '2025-01-15'],
-        ['key' => 'vincent', 'title' => 'Chief', 'first_name' => 'Vincent', 'middle_name' => null, 'last_name' => 'Onyesoh', 'email' => 'late.vincent.onyesoh@nzena-ozo.local', 'amount' => 3000, 'announced' => '2024-12-01', 'due' => '2025-01-15'],
-        ['key' => 'egolum', 'title' => 'Chief', 'first_name' => 'Ikenna', 'middle_name' => null, 'last_name' => 'Egolum', 'email' => 'late.ikenna.egolum@nzena-ozo.local', 'amount' => 3000, 'announced' => '2025-05-10', 'due' => '2025-06-10'],
-        ['key' => 'nriezedi', 'title' => 'Justice', 'first_name' => 'Late', 'middle_name' => null, 'last_name' => 'Nriezedi', 'email' => 'late.nriezedi@nzena-ozo.local', 'amount' => 3000, 'announced' => '2025-09-01', 'due' => '2025-10-01'],
-        ['key' => 'okafor', 'title' => 'Prof.', 'first_name' => 'Nduka', 'middle_name' => null, 'last_name' => 'Okafor', 'email' => 'late.nduka.okafor@nzena-ozo.local', 'amount' => 3000, 'announced' => '2025-10-15', 'due' => '2025-11-15'],
-        ['key' => 'ofoma', 'title' => 'Oba', 'first_name' => 'Chukwudi', 'middle_name' => null, 'last_name' => 'Ofoma', 'email' => 'late.chukwudi.ofoma@nzena-ozo.local', 'amount' => 5000, 'announced' => '2026-01-10', 'due' => '2026-02-10'],
+        ['key' => 'okonkwo', 'title' => 'Chief', 'first_name' => 'Late', 'middle_name' => 'Okey', 'last_name' => 'Okonkwo', 'amount' => 3000, 'announced' => '2024-06-01', 'due' => '2024-07-31'],
+        ['key' => 'ifeacho', 'title' => 'Chief', 'first_name' => 'Late', 'middle_name' => null, 'last_name' => 'Ifeacho', 'amount' => 3000, 'announced' => '2024-12-01', 'due' => '2025-01-15'],
+        ['key' => 'vincent', 'title' => 'Chief', 'first_name' => 'Vincent', 'middle_name' => null, 'last_name' => 'Onyesoh', 'amount' => 3000, 'announced' => '2024-12-01', 'due' => '2025-01-15'],
+        ['key' => 'egolum', 'title' => 'Chief', 'first_name' => 'Ikenna', 'middle_name' => null, 'last_name' => 'Egolum', 'amount' => 3000, 'announced' => '2025-05-10', 'due' => '2025-06-10'],
+        ['key' => 'nriezedi', 'title' => 'Justice', 'first_name' => 'Late', 'middle_name' => null, 'last_name' => 'Nriezedi', 'amount' => 3000, 'announced' => '2025-09-01', 'due' => '2025-10-01'],
+        ['key' => 'okafor', 'title' => 'Prof.', 'first_name' => 'Nduka', 'middle_name' => null, 'last_name' => 'Okafor', 'amount' => 3000, 'announced' => '2025-10-15', 'due' => '2025-11-15'],
+        ['key' => 'ofoma', 'title' => 'Oba', 'first_name' => 'Chukwudi', 'middle_name' => null, 'last_name' => 'Ofoma', 'amount' => 5000, 'announced' => '2026-01-10', 'due' => '2026-02-10'],
     ];
 
     /**
@@ -61,9 +60,6 @@ class ImportOzoLedger extends Command
 
     public const NAME_COL = 1;
 
-    /** @var array<string, true> */
-    private array $usedEmails = [];
-
     public function handle(): int
     {
         $path = base_path($this->option('file'));
@@ -74,7 +70,7 @@ class ImportOzoLedger extends Command
             return self::FAILURE;
         }
 
-        if (! $this->option('force') && ! $this->confirm('Wipe all members, condolences, levies, payments, arrears and deposits (users are kept) and import the ledger?')) {
+        if (! $this->option('force') && ! $this->confirm('Wipe all members, condolences, levies, payments and deposits (users are kept) and import the ledger?')) {
             $this->info('Aborted.');
 
             return self::SUCCESS;
@@ -276,21 +272,6 @@ class ImportOzoLedger extends Command
         throw new \RuntimeException("Unexpected amount cell: {$value}");
     }
 
-    public function emailFor(string $firstName, string $lastName): string
-    {
-        $base = trim(Str::slug($firstName).'.'.Str::slug($lastName), '.');
-        $base = $base !== '' && $base !== '.' ? $base : 'member';
-        $email = $base.'@nzena-ozo.local';
-        $counter = 2;
-        while (isset($this->usedEmails[$email]) || Member::where('email', $email)->exists()) {
-            $email = $base.$counter.'@nzena-ozo.local';
-            $counter++;
-        }
-        $this->usedEmails[$email] = true;
-
-        return $email;
-    }
-
     private function wipeMemberData(): void
     {
         Payment::query()->delete();
@@ -325,7 +306,7 @@ class ImportOzoLedger extends Command
     }
 
     /**
-     * @param  array{title: string, first_name: string, middle_name: ?string, last_name: string, email: string}  $def
+     * @param  array{title: string, first_name: string, middle_name: ?string, last_name: string}  $def
      */
     private function importDeceased(array $def): Member
     {
@@ -334,8 +315,6 @@ class ImportOzoLedger extends Command
             'first_name' => $def['first_name'],
             'middle_name' => $def['middle_name'],
             'last_name' => $def['last_name'],
-            'email' => $def['email'],
-            'password' => Hash::make(Str::random(32)),
             'status' => MemberStatus::Deceased->value,
         ]);
     }
@@ -346,21 +325,18 @@ class ImportOzoLedger extends Command
      */
     private function importMembers(array $members): void
     {
-        $password = Hash::make('password');
         $now = Carbon::now()->toDateTimeString();
         $chunk = [];
 
         foreach ($members as $row) {
             $parsed = self::parseMemberName((string) $row[self::NAME_COL]);
-            $email = $this->emailFor($parsed['first_name'], $parsed['last_name']);
 
             $chunk[] = [
+                'id' => (string) Str::uuid7(),
                 'title' => $parsed['title'],
                 'first_name' => $parsed['first_name'],
                 'middle_name' => $parsed['middle_name'],
                 'last_name' => $parsed['last_name'],
-                'email' => $email,
-                'password' => $password,
                 'status' => MemberStatus::Active->value,
                 'opening_arrears' => $this->option('members-only') ? 0 : self::amountCell($row[self::OPENING_COL]),
                 'notes' => str_contains((string) $row[self::NAME_COL], '**') ? 'Marked ** in ledger.' : null,
@@ -466,7 +442,7 @@ class ImportOzoLedger extends Command
                     }
                 }
 
-                $touchedIds = array_map(fn ($split): int => $split['levy']->id, $splits);
+                $touchedIds = array_map(fn ($split): string => $split['levy']->id, $splits);
 
                 // Spillover goes to the oldest debt still standing
                 // (opening balance dated 2024-05-31 sorts first naturally).

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\PaymentFactory;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 class Payment extends Model
 {
     /** @use HasFactory<PaymentFactory> */
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'condolence_levy_id',

@@ -12,14 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('deposits', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('member_id')->constrained('members')->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('member_id')->constrained('members')->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
             $table->date('paid_at');
             $table->string('payment_method', 30)->default('cash');
             $table->string('reference')->nullable();
             $table->string('reason', 30)->default('condolence');
-            $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
             $table->decimal('opening_applied', 12, 2)->default(0);
             $table->decimal('credit_added', 12, 2)->default(0);
