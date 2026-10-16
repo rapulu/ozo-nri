@@ -33,6 +33,21 @@ class MemberInfolist
                             ->date(),
                     ])
                     ->columns(2),
+                Section::make('Bank account')
+                    ->schema([
+                        TextEntry::make('bank_name')
+                            ->label('Bank')
+                            ->placeholder('Not provided'),
+                        TextEntry::make('account_number')
+                            ->label('Account number')
+                            ->copyable()
+                            ->placeholder('Not provided'),
+                        TextEntry::make('account_name')
+                            ->label('Account name')
+                            ->placeholder('Not provided'),
+                    ])
+                    ->columns(3)
+                    ->collapsible(),
                 Section::make('Account summary (condolences + arrears)')
                     ->schema([
                         TextEntry::make('opening_arrears')

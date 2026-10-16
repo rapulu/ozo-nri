@@ -23,6 +23,9 @@ class Member extends Model
         'last_name',
         'phone',
         'address',
+        'bank_name',
+        'account_number',
+        'account_name',
         'date_joined',
         'photo_path',
         'status',
@@ -50,6 +53,45 @@ class Member extends Model
     public function user(): HasOne
     {
         return $this->hasOne(User::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function nigerianBanks(): array
+    {
+        $banks = [
+            'Access Bank',
+            'Citibank Nigeria',
+            'Ecobank Nigeria',
+            'Fidelity Bank',
+            'First Bank of Nigeria',
+            'First City Monument Bank',
+            'Globus Bank',
+            'Guaranty Trust Bank',
+            'Jaiz Bank',
+            'Keystone Bank',
+            'Kuda Microfinance Bank',
+            'Lotus Bank',
+            'Moniepoint Microfinance Bank',
+            'OPay Digital Services',
+            'PalmPay',
+            'Parallex Bank',
+            'Polaris Bank',
+            'PremiumTrust Bank',
+            'Providus Bank',
+            'Stanbic IBTC Bank',
+            'Standard Chartered Bank',
+            'Sterling Bank',
+            'SunTrust Bank',
+            'Union Bank of Nigeria',
+            'United Bank for Africa',
+            'Unity Bank',
+            'Wema Bank',
+            'Zenith Bank',
+        ];
+
+        return array_combine($banks, $banks);
     }
 
     public function getFullNameAttribute(): string

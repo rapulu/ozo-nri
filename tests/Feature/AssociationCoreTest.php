@@ -6,6 +6,7 @@ use App\Enums\LevyStatus;
 use App\Enums\MemberStatus;
 use App\Filament\Member\Resources\MyDepositResource;
 use App\Filament\Resources\Condolences\Pages\ListCondolences;
+use App\Filament\Resources\Members\Pages\CreateMember;
 use App\Filament\Resources\Members\Pages\ListMembers;
 use App\Filament\Resources\Members\Pages\ViewMember;
 use App\Filament\Resources\Members\RelationManagers\MemberDepositsRelationManager;
@@ -769,5 +770,50 @@ class AssociationCoreTest extends TestCase
 
         $this->assertEquals([$member->id], $query->pluck('member_id')->unique()->all());
         $this->assertEquals(1000, (float) $query->sum('amount'));
+    }
+
+    public function test_member_bank_details_save_from_create_form(): void
+    {
+        $secretary = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->actingAs($secretary, 'web');
+
+        Livewire::test(CreateMember::class)
+            ->fillForm([
+                'title' => 'Mr',
+                'first_name' => 'Banked',
+                'last_name' => 'Member',
+                'status' => MemberStatus::Active->value,
+                'bank_name' => 'Guaranty Trust Bank',
+                'account_number' => '0123456789',
+                'account_name' => 'Banked Member',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $member = Member::where('first_name', 'Banked')->firstOrFail();
+
+        $this->assertSame('Guaranty Trust Bank', $member->bank_name);
+        $this->assertSame('0123456789', $member->account_number);
+        $this->assertSame('Banked Member', $member->account_name);
+    }
+
+    public function test_member_account_number_must_be_ten_digits(): void
+    {
+        $secretary = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->actingAs($secretary, 'web');
+
+        Livewire::test(CreateMember::class)
+            ->fillForm([
+                'title' => 'Mr',
+                'first_name' => 'Short',
+                'last_name' => 'Account',
+                'status' => MemberStatus::Active->value,
+                'bank_name' => 'Zenith Bank',
+                'account_number' => '123456789',
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['account_number']);
+
+        $this->assertNull(Member::where('first_name', 'Short')->first());
     }
 }

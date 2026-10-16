@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Members\Schemas;
 
 use App\Enums\MemberStatus;
 use App\Enums\MemberTitle;
+use App\Models\Member;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -46,6 +47,26 @@ class MemberForm
                         TextInput::make('address')
                             ->maxLength(255)
                             ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+                Section::make('Bank account')
+                    ->description('Nigerian bank details for refunds and payouts.')
+                    ->schema([
+                        Select::make('bank_name')
+                            ->label('Bank')
+                            ->options(Member::nigerianBanks())
+                            ->searchable()
+                            ->placeholder('Select a bank'),
+                        TextInput::make('account_number')
+                            ->label('Account number')
+                            ->rule('nullable')
+                            ->rule('digits:10')
+                            ->maxLength(10)
+                            ->helperText('10-digit NUBAN account number.'),
+                        TextInput::make('account_name')
+                            ->label('Account name')
+                            ->maxLength(255)
+                            ->helperText('Name on the account, as held by the bank.'),
                     ])
                     ->columns(2),
                 Section::make('Membership')
