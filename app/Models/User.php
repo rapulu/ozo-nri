@@ -59,7 +59,9 @@ class User extends Authenticatable implements FilamentUser
     {
         return match ($panel->getId()) {
             'admin' => $this->isAdmin(),
-            'member' => $this->isMember() && $this->member?->status === MemberStatus::Active->value,
+            // Admins linked to an active member keep their own portal too,
+            // so a member can be promoted without losing their profile.
+            'member' => ($this->isMember() || $this->isAdmin()) && $this->member?->status === MemberStatus::Active->value,
             default => false,
         };
     }

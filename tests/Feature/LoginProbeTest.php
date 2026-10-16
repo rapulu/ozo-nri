@@ -46,4 +46,21 @@ class LoginProbeTest extends TestCase
 
         $this->assertGuest('web');
     }
+
+    public function test_admin_linked_to_active_member_keeps_both_portals(): void
+    {
+        $member = Member::factory()->create(['status' => MemberStatus::Active->value]);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'member_id' => $member->id]);
+
+        $this->assertTrue($admin->canAccessPanel(Filament::getPanel('admin')));
+        $this->assertTrue($admin->canAccessPanel(Filament::getPanel('member')));
+    }
+
+    public function test_admin_without_member_has_no_portal(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'member_id' => null]);
+
+        $this->assertTrue($admin->canAccessPanel(Filament::getPanel('admin')));
+        $this->assertFalse($admin->canAccessPanel(Filament::getPanel('member')));
+    }
 }

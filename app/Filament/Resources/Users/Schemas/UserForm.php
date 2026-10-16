@@ -43,8 +43,7 @@ class UserForm
                     ->label('Linked member')
                     ->options(fn (): array => Member::query()->orderBy('last_name')->get()->mapWithKeys(fn (Member $m): array => [$m->id => $m->full_name])->toArray())
                     ->searchable()
-                    ->visible(fn (callable $get): bool => $get('role') === User::ROLE_MEMBER)
-                    ->helperText('Members sign in with this login and see only their own profile.'),
+                    ->helperText('Link their association profile: members keep their own portal even as admins; admins without a link have no portal.'),
             ]);
     }
 }
